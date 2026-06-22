@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Suwonj</title>
+        <link rel="stylesheet" href="/css/global.css" />
+        <style>
+            #halftone-canvas {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                z-index: -1;
+            }
+            main {
+                position: relative;
+                pointer-events: none;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="halftone-canvas"></canvas>
+
+        <main style="padding: 3rem; text-align: center; margin-top: 10vh">
+            <h1 style="font-size: 3rem; color: #fff">SuwonJ</h1>
+            <p style="color: #888; margin-top: 1rem">이건 설명글입니다.</p>
+        </main>
+
+        <script type="module">
+            import { renderNavbar } from "/components/navbar.js";
+            renderNavbar();
+        </script>
+        <script src="./main.js"></script>
+
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

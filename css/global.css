@@ -1,0 +1,114 @@
+@font-face {
+    font-family: "Ridibatang";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_twelve@1.0/RIDIBatang.woff")
+        format("woff");
+    font-weight: normal;
+    font-display: swap;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: "Ridibatang", sans-serif;
+}
+
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: sans-serif;
+    font-size: 17px;
+}
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    background-color: #12121200;
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 10;
+}
+
+main {
+    padding-top: 120px !important;
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 80px,
+        black 180px,
+        black 100%
+    );
+    -webkit-mask-size: 100vw 100vh;
+    -webkit-mask-repeat: no-repeat;
+
+    -webkit-mask-position: center var(--scroll-y, 0px);
+
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 80px,
+        black 180px,
+        black 100%
+    );
+    mask-size: 100vw 100vh;
+    mask-repeat: no-repeat;
+    mask-position: center var(--scroll-y, 0px);
+}
+
+.nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: #ffffff;
+}
+
+.suwonj-nav-icon {
+    height: 30px;
+    width: auto;
+    object-fit: contain;
+
+    filter: invert(100%);
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+}
+
+#halftone-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.nav-links a {
+    color: #a0a0a0;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.nav-links a:hover {
+    color: #fff;
+}
+
+hr {
+    margin: 2rem 0;
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
