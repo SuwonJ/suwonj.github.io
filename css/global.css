@@ -162,3 +162,25 @@ body {
     overflow-y: hidden;
     max-width: 100%;
 }
+
+/* Tag List Styles */
+.tag-list {
+    margin: 0 0 2rem 0;
+    font-size: 0.95rem;
+    color: #555555;
+    font-family: monospace; /* 조금 더 개발자스러운 폰트 느낌 */
+}
+
+.tag-list span {
+    margin: 0 0.3rem;
+}
+
+.tag {
+    cursor: pointer;
+    color: #777777;
+    transition: color 0.3s ease;
+}
+
+.tag:hover, .tag.active {
+    color: #ffffff;
+}

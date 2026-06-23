@@ -6,6 +6,7 @@ async function init() {
   const blogBg = new HalftoneBackground("halftone-canvas", {
     iconSrc: null,
     boundarySelectors: [".navbar", "hr"],
+    buttonSelectors: [".tag"],
   });
   blogBg.init();
 
@@ -28,7 +29,13 @@ async function renderPost(id, container) {
     if (!response.ok) throw new Error("문서를 찾을 수 없습니다.");
 
     const markdownText = await response.text();
-    container.innerHTML = marked.parse(markdownText);
+    const tagHtml = `
+        <div class="tag-list">
+            <span class="tag">Tech</span> / 
+            <span class="tag">Math</span>
+        </div>
+    `;
+    container.innerHTML = tagHtml + marked.parse(markdownText);
 
     if (typeof renderMathInElement === "function") {
       renderMathInElement(container, {
@@ -51,6 +58,12 @@ async function renderPostList(container) {
     const listData = await response.json();
 
     container.innerHTML = `
+        <div class="tag-list">
+            <span class="tag active">All</span> / 
+            <span class="tag">Tech</span> / 
+            <span class="tag">Math</span> / 
+            <span class="tag">Life</span>
+        </div>
         <ul class="blog-list">
             ${listData
               .map(
