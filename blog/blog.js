@@ -6,7 +6,6 @@ async function init() {
   const blogBg = new HalftoneBackground("halftone-canvas", {
     iconSrc: null,
     boundarySelectors: [".navbar", "hr"],
-    buttonSelectors: [".tag"],
   });
   blogBg.init();
 
@@ -15,6 +14,17 @@ async function init() {
   const contentArea = document.getElementById("content");
 
   if (postId) {
+    try {
+      const res = await fetch("../content/blog/list.json");
+      if (res.ok) {
+        const listData = await res.json();
+        const postMeta = listData.find((p) => p.id === postId);
+        if (postMeta) {
+          const titleEl = document.getElementById("page-title");
+          if (titleEl) titleEl.innerText = postMeta.title;
+        }
+      }
+    } catch (e) {}
     // 본문 렌더
     await renderPost(postId, contentArea);
   } else {
@@ -35,7 +45,10 @@ async function renderPost(id, container) {
             <span class="tag">Math</span>
         </div>
     `;
-    container.innerHTML = tagHtml + marked.parse(markdownText);
+    const tagContainer = document.getElementById("tag-container");
+    if (tagContainer) tagContainer.innerHTML = tagHtml;
+    
+    container.innerHTML = marked.parse(markdownText);
 
     if (typeof renderMathInElement === "function") {
       renderMathInElement(container, {
@@ -57,13 +70,18 @@ async function renderPostList(container) {
 
     const listData = await response.json();
 
-    container.innerHTML = `
+    const tagHtml = `
         <div class="tag-list">
             <span class="tag active">All</span> / 
             <span class="tag">Tech</span> / 
             <span class="tag">Math</span> / 
             <span class="tag">Life</span>
         </div>
+    `;
+    const tagContainer = document.getElementById("tag-container");
+    if (tagContainer) tagContainer.innerHTML = tagHtml;
+
+    container.innerHTML = `
         <ul class="blog-list">
             ${listData
               .map(
