@@ -27,11 +27,15 @@ export class HalftoneBackground {
   init() {
     this.setupEvents();
     if (this.iconSrc) {
-      this.iconImg.src = this.iconSrc;
       this.iconImg.onload = () => {
         this.cacheIconData();
         this.resizeCanvas();
+        // 모바일 브라우저(특히 Safari)의 SVG 래스터화 지연 문제 해결을 위해 지연 재호출
+        setTimeout(() => {
+          this.cacheIconData();
+        }, 100);
       };
+      this.iconImg.src = this.iconSrc;
     }
     this.resizeCanvas();
     this.scanTargets();
@@ -83,12 +87,15 @@ export class HalftoneBackground {
   }
 
   cacheIconData() {
-    if (!this.iconImg.complete || this.iconImg.naturalWidth === 0) return;
+    if (!this.iconImg.complete) return;
+    const imgWidth = this.iconImg.naturalWidth || 234;
+    const imgHeight = this.iconImg.naturalHeight || 200;
+
     const offCanvas = document.createElement("canvas");
     const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
-    this.iconRect.w = Math.min(window.innerWidth * 0.7, 900);
+    this.iconRect.w = Math.floor(Math.min(window.innerWidth * 0.7, 900));
     this.iconRect.h = Math.floor(
-      (this.iconImg.naturalHeight / this.iconImg.naturalWidth) *
+      (imgHeight / imgWidth) *
         this.iconRect.w,
     );
     const margin = 40;
