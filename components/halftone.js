@@ -121,10 +121,23 @@ export class HalftoneBackground {
       this.scanTargets();
     });
 
-    window.addEventListener("mousemove", (e) => {
-      this.mouse.x = e.clientX;
-      this.mouse.y = e.clientY;
-    });
+    const updateMouse = (x, y) => {
+      this.mouse.x = x;
+      this.mouse.y = y;
+    };
+
+    window.addEventListener("mousemove", (e) => updateMouse(e.clientX, e.clientY));
+
+    window.addEventListener("touchstart", (e) => {
+      if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+
+    window.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+
+    window.addEventListener("touchend", () => updateMouse(-1000, -1000));
+    window.addEventListener("mouseleave", () => updateMouse(-1000, -1000));
 
     window.addEventListener(
       "scroll",
