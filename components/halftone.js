@@ -249,10 +249,17 @@ export class HalftoneBackground {
         let maxBoundaryIntensity = 0;
         for (let b of this.currentBoundaryYs) {
           const checkY = b.isFixed ? y : absY;
-          const dist = Math.abs(checkY - b.position);
+          
+          let targetPos;
+          if (b.isFixed) {
+            targetPos = Math.round((b.position - yOffset) / this.gap) * this.gap + yOffset;
+          } else {
+            targetPos = Math.round(b.position / this.gap) * this.gap;
+          }
+          const dist = Math.abs(checkY - targetPos);
 
-          if (dist < this.gap && x >= b.left && x <= b.right) {
-            const intensity = 1 - dist / this.gap;
+          if (dist < 1 && x >= b.left && x <= b.right) {
+            const intensity = 1;
             maxBoundaryIntensity = Math.max(maxBoundaryIntensity, intensity);
           }
         }

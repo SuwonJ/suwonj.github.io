@@ -31,6 +31,10 @@ async function init() {
     // 목록 보이기
     await renderPostList(contentArea);
   }
+
+  // 본문 또는 목록 렌더링 후 변경된 위치 재스캔
+  blogBg.scanTargets();
+  setTimeout(() => blogBg.scanTargets(), 300); // 폰트/이미지 등 비동기 렌더링 대비
 }
 
 async function renderPost(id, container) {
