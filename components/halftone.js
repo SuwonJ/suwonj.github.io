@@ -249,17 +249,12 @@ export class HalftoneBackground {
         let maxBoundaryIntensity = 0;
         for (let b of this.currentBoundaryYs) {
           const checkY = b.isFixed ? y : absY;
-          
-          let targetPos;
-          if (b.isFixed) {
-            targetPos = Math.round((b.position - yOffset) / this.gap) * this.gap + yOffset;
-          } else {
-            targetPos = Math.round(b.position / this.gap) * this.gap;
-          }
-          const dist = Math.abs(checkY - targetPos);
+          const dist = Math.abs(checkY - b.position);
 
-          if (dist < 1 && x >= b.left && x <= b.right) {
-            const intensity = 1;
+          if (dist < this.gap && x >= b.left && x <= b.right) {
+            const normalizedDist = dist / this.gap;
+            // 거리가 멀어질 때 선형으로 어두워지지 않고(0.5), 제곱 곡선을 써서 중간 지점에서도 75%(0.75)의 밝기를 유지하게 함
+            const intensity = 1 - (normalizedDist * normalizedDist);
             maxBoundaryIntensity = Math.max(maxBoundaryIntensity, intensity);
           }
         }
