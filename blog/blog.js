@@ -2,6 +2,10 @@ import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
 
 async function init() {
+  if (typeof window.markedKatex === "function") {
+    marked.use(window.markedKatex({ throwOnError: false }));
+  }
+
   renderNavbar();
   const blogBg = new HalftoneBackground("halftone-canvas", {
     iconSrc: null,
@@ -53,15 +57,6 @@ async function renderPost(id, container) {
     if (tagContainer) tagContainer.innerHTML = tagHtml;
     
     container.innerHTML = marked.parse(markdownText);
-
-    if (typeof renderMathInElement === "function") {
-      renderMathInElement(container, {
-        delimiters: [
-          { left: "$$", right: "$$", display: true },
-          { left: "$", right: "$", display: false },
-        ],
-      });
-    }
   } catch (error) {
     container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
   }
