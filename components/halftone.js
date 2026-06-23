@@ -34,6 +34,7 @@ export class HalftoneBackground {
       };
     }
     this.resizeCanvas();
+    this.scanTargets();
     this.animate();
   }
 
@@ -115,16 +116,26 @@ export class HalftoneBackground {
   }
 
   setupEvents() {
-    window.addEventListener("resize", () => this.resizeCanvas());
+    window.addEventListener("resize", () => {
+      this.resizeCanvas();
+      this.scanTargets();
+    });
+
     window.addEventListener("mousemove", (e) => {
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
     });
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        this.scanTargets();
+      },
+      { passive: true },
+    );
   }
 
   animate() {
-    this.scanTargets();
-
     for (let i = 0; i < this.currentBoundaryYs.length; i++) {
       this.currentBoundaryYs[i].position +=
         (this.targetBoundaryYs[i].position -
