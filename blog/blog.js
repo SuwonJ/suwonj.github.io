@@ -62,9 +62,10 @@ async function renderPost(id, container) {
     text = text.replace(/==([^=]+)==/g, "<mark>$1</mark>");
     
     // 2. 수식 블록 줄바꿈 강제 (marked-katex-extension 호환용)
-    // 텍스트와 $$가 같은 줄에 있으면 확장 기능이 인식하지 못하므로, $$ 앞뒤로 줄바꿈을 삽입합니다.
-    text = text.replace(/([^\n])\s*\$\$/g, "$1\n$$$$"); // $$ 앞에 글자가 있으면 줄바꿈 추가
-    text = text.replace(/\$\$\s*([^\n])/g, "$$$$\n$1"); // $$ 뒤에 글자가 있으면 줄바꿈 추가
+    // 리스트 내부에 있을 경우 단일 줄바꿈(\n)만으로는 단락이 끊기지 않아 블록으로 인식하지 못합니다.
+    // 따라서 $$ 앞뒤로 반드시 두 번의 줄바꿈(\n\n)을 보장하여 독립된 블록으로 만듭니다.
+    text = text.replace(/([^\n])\s*\$\$/g, "$1\n\n$$$$");
+    text = text.replace(/\$\$\s*([^\n])/g, "$$$$\n\n$1");
     
     container.innerHTML = marked.parse(text);
   } catch (error) {
