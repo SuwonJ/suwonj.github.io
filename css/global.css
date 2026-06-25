@@ -154,7 +154,7 @@ h1 {
     white-space: pre;
     padding: 2.5rem 1.5rem 1.5rem 1.5rem;
     background: transparent !important;
-    margin-bottom: 1.5rem;
+    margin: 2.8rem 0;
     cursor: pointer;
     position: relative;
     border: none;
@@ -229,6 +229,20 @@ h1 {
     main {
         padding: 1.5rem !important;
         padding-top: 100px !important;
+        -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent 50px,
+            black 100px,
+            black 100%
+        );
+        mask-image: linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent 50px,
+            black 100px,
+            black 100%
+        );
     }
 
     .navbar {
@@ -423,7 +437,7 @@ mark {
 .table-wrapper {
     width: 100%;
     overflow-x: auto;
-    margin: 2rem 0;
+    margin: 2.8rem 0;
     -webkit-overflow-scrolling: touch;
 }
 
