@@ -346,6 +346,9 @@ mark {
 #floating-toc {
     display: none;
 }
+#floating-tree {
+    display: none;
+}
 @media (min-width: 1200px) {
     main {
         margin-left: max(5%, calc((100vw - 1100px) / 2)) !important;
@@ -362,6 +365,26 @@ mark {
         padding-left: 1rem;
         border-left: 1px solid #333;
         font-size: 0.85rem;
+    }
+    #floating-tree {
+        display: block;
+        position: fixed;
+        top: 150px;
+        left: 20px;
+        width: 200px;
+        max-height: calc(100vh - 180px);
+        overflow-y: auto;
+        padding-right: 1rem;
+        border-right: 1px solid #333;
+        font-size: 0.85rem;
+    }
+    /* 스크롤바 숨기기 */
+    #floating-tree::-webkit-scrollbar {
+        width: 4px;
+    }
+    #floating-tree::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 4px;
     }
     /* 스크롤바 숨기기 */
     #floating-toc::-webkit-scrollbar {
@@ -450,9 +473,141 @@ mark {
 }
 
 #content tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.01); /* 홀짝 라인 구분 */
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* 리눅스 Tree 스타일의 뷰 */
+.tree-view {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.95rem;
+    color: #ddd;
+    margin-top: 1rem;
+    line-height: 1.4;
+}
+
+.tree-view a {
+    color: #9ab8dd;
+    text-decoration: none;
+}
+
+.tree-view a:hover {
+    text-decoration: underline;
+}
+
+.tree-view ul {
+    list-style: none;
+    padding-left: 1.3rem;
+    margin: 0;
+}
+
+.tree-view > ul {
+    padding-left: 0;
+}
+
+.tree-view li {
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+.tree-view li::before, .tree-view li::after {
+    content: "";
+    position: absolute;
+    left: -1rem;
+}
+
+.tree-view li::before {
+    border-top: 1px solid #777;
+    top: 0.7em;
+    width: 0.8rem;
+}
+
+.tree-view li::after {
+    border-left: 1px solid #777;
+    top: 0;
+    bottom: 0;
+}
+
+.tree-view li:last-child::after {
+    bottom: auto;
+    height: 0.7em;
+}
+
+.tree-view > ul > li::before,
+.tree-view > ul > li::after {
+    display: none;
+}
+
+.tree-view details > summary {
+    cursor: pointer;
+    display: inline-block;
+    user-select: none;
+    color: #fff;
+    font-weight: bold;
+}
+
+.tree-view details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.tree-view details > summary::before {
+    content: "";
+}
+
+.tree-view details[open] > summary::before {
+    content: "";
 }
 
 #content tr:hover {
     background-color: rgba(255, 255, 255, 0.03); /* 호버 시 미세하게 밝아짐 */
+}
+
+/* 탭 네비게이션 스타일 */
+.tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    align-items: center;
+}
+
+.tab-btn {
+    background: transparent;
+    border: 1px solid #333;
+    color: #888;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-family: inherit;
+}
+
+.tab-btn:hover {
+    color: #fff;
+    border-color: #666;
+}
+
+.tab-btn.active {
+    color: #fff;
+    background-color: #333;
+    border-color: #555;
+}
+
+/* PDF 컨테이너 스타일 */
+.pdf-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.pdf-page-canvas {
+    max-width: 100%;
+    height: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    border: 1px solid #333;
 }

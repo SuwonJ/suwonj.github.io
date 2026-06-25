@@ -9,6 +9,8 @@
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css"
         />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+        <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap" rel="stylesheet" onerror="this.onerror=null;this.href='';">
 
         <style>
             #halftone-canvas {
@@ -43,15 +45,33 @@
                 margin: 0 auto;
             "
         >
-            <h1 style="font-size: 2rem; margin-bottom: 1rem">연구 기록</h1>
-            <hr style="border-color: #2a2a2a; margin-bottom: 2rem" />
+            <h1 id="page-title" style="font-size: 2rem; margin-bottom: 1rem">연구 기록</h1>
+            <div id="tag-container"></div>
+            <hr
+                style="
+                    border: none;
+                    height: 1px;
+                    margin-bottom: 2rem;
+                    visibility: hidden;
+                    width: 100%;
+                    margin: 1rem auto;
+                "
+            />
 
             <div id="content" style="line-height: 1.8">로딩 중...</div>
         </main>
 
+        <aside id="floating-toc"></aside>
+
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/katex/dist/contrib/auto-render.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+        <script>
+            // pdf.js worker 설정을 여기에 지정해줍니다.
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        </script>
 
         <script type="module" src="./research.js"></script>
     </body>

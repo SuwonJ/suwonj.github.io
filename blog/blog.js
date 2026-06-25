@@ -1,6 +1,62 @@
 import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
 
+function buildTree(list) {
+  const root = { name: "root", children: {}, files: [], path: "" };
+  list.forEach(post => {
+    const parts = post.id.split('/');
+    let current = root;
+    let path = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      path = path ? path + "/" + part : part;
+      if (!current.children[part]) {
+        current.children[part] = { name: part, children: {}, files: [], path: path };
+      }
+      current = current.children[part];
+    }
+    current.files.push(post);
+  });
+  return root;
+}
+
+function renderTreeHtml(node, currentId = null) {
+  let html = '<ul>';
+  
+  const folders = Object.values(node.children);
+  const files = node.files;
+  
+  folders.forEach((folder) => {
+    let isOpen = false;
+    if (!currentId) {
+      isOpen = true; // on main page, all open (if rendered at all)
+    } else if (currentId.startsWith(folder.path + "/")) {
+      isOpen = true;
+    }
+
+    html += `
+      <li>
+        <details ${isOpen ? "open" : ""}>
+          <summary>${folder.name}</summary>
+          ${renderTreeHtml(folder, currentId)}
+        </details>
+      </li>
+    `;
+  });
+  
+  files.forEach((file) => {
+    const isActive = currentId === file.id;
+    html += `
+      <li>
+        <a href="/blog/?id=${file.id}" ${isActive ? 'class="active" style="color:#fff;font-weight:bold;"' : ''}>${file.title}</a>
+      </li>
+    `;
+  });
+  
+  html += `</ul>`;
+  return html;
+}
+
 async function init() {
   if (typeof window.markedKatex === "function") {
     marked.use(window.markedKatex({ throwOnError: false, nonStandard: true }));
@@ -19,11 +75,22 @@ async function init() {
   const postId = urlParams.get("id");
   const contentArea = document.getElementById("content");
 
-  if (postId) {
-    try {
-      const res = await fetch("../content/blog/list.json");
-      if (res.ok) {
-        const listData = await res.json();
+  try {
+    const res = await fetch("../content/blog/list.json");
+    if (res.ok) {
+      const listData = await res.json();
+      
+      const treeRoot = buildTree(listData);
+      const floatingTree = document.getElementById("floating-tree");
+      if (floatingTree) {
+          if (postId) {
+              floatingTree.innerHTML = `<div class="tree-view">${renderTreeHtml(treeRoot, postId)}</div>`;
+          } else {
+              floatingTree.innerHTML = '';
+          }
+      }
+
+      if (postId) {
         const postMeta = listData.find((p) => p.id === postId);
         if (postMeta) {
           const titleEl = document.getElementById("page-title");
@@ -36,7 +103,10 @@ async function init() {
           }
         }
       }
-    } catch (e) {}
+    }
+  } catch (e) {}
+
+  if (postId) {
     // 본문 렌더
     await renderPost(postId, contentArea);
   } else {
@@ -140,11 +210,24 @@ async function renderPost(id, container) {
 
     const breadcrumb = document.getElementById("nav-breadcrumb");
     if (breadcrumb) {
-      breadcrumb.innerHTML = `
+      let breadcrumbHtml = `
         <a href="/blog/">
           <span class="desktop-text">블로그</span>
           <span class="mobile-text">블</span>
         </a> 
+      `;
+
+      if (postMeta && postMeta.id) {
+          const parts = postMeta.id.split('/');
+          for (let i = 0; i < parts.length - 1; i++) {
+              breadcrumbHtml += `
+                  <span style="margin:0 0.3rem">/</span>
+                  <span style="color:#aaa">${parts[i]}</span>
+              `;
+          }
+      }
+
+      breadcrumbHtml += `
         <span style="margin:0 0.3rem">/</span> 
         <a href="#" id="bc-title">
           <span class="desktop-text">${postMeta.title || "문서"}</span>
@@ -156,6 +239,8 @@ async function renderPost(id, container) {
           <span class="mobile-text"></span>
         </a>
       `;
+
+      breadcrumb.innerHTML = breadcrumbHtml;
 
       const bcTitle = document.getElementById("bc-title");
       bcTitle.addEventListener("click", (e) => {
@@ -338,20 +423,13 @@ async function renderPostList(container) {
       return activeTags.some(t => post.tags.includes(t));
     });
 
+    const treeRoot = buildTree(filteredList);
     container.innerHTML = `
-        <ul class="blog-list">
-            ${filteredList
-              .map(
-                (post) => `
-                <li>
-                    <a href="/blog/?id=${post.id}">${post.title}</a>
-                    <span class="post-date">(${post.date})</span>
-                </li>
-            `,
-              )
-              .join("")}
-        </ul>
+        <div class="tree-view">
+            ${renderTreeHtml(treeRoot)}
+        </div>
     `;
+
   } catch (error) {
     container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
   }

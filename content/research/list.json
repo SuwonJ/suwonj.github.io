@@ -1,5 +1,13 @@
 [
-  { "id": "test", "title": "테스트 일", "date": "2026-06-22" },
+  { 
+    "id": "test", 
+    "title": "테스트 일", 
+    "date": "2026-06-22",
+    "tabs": [
+      { "id": "markdown", "label": "마크다운", "type": "markdown", "file": "test.md" },
+      { "id": "pdf", "label": "PDF 문서", "type": "pdf", "file": "test.pdf" }
+    ]
+  },
   {
     "id": "test2",
     "title": "테스트 이",
