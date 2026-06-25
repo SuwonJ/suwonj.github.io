@@ -130,6 +130,7 @@ main {
 
 hr {
     margin: 2rem 0;
+    opacity: 0;
 }
 
 h1 {
@@ -257,11 +258,12 @@ h1 {
     .mobile-text {
         display: inline;
     }
+}
 
-    .bc-path-link:hover {
-        color: #fff !important;
-        text-decoration: underline !important;
-    }
+.bc-path-link:hover,
+.bc-toc-link:hover {
+    color: #fff !important;
+    text-decoration: underline !important;
 }
 
 body {

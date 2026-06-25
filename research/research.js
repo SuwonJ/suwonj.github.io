@@ -58,6 +58,47 @@ async function renderPost(id, container) {
       postMeta = listData.find(p => p.id === id) || {};
     }
 
+    const breadcrumb = document.getElementById("nav-breadcrumb");
+    if (breadcrumb) {
+      let breadcrumbHtml = `
+        <a href="/research/">
+          <span class="desktop-text">연구기록</span>
+          <span class="mobile-text">연</span>
+        </a> 
+      `;
+
+      if (postMeta && postMeta.id) {
+          const parts = postMeta.id.split('/');
+          let accumulatedPath = "";
+          for (let i = 0; i < parts.length - 1; i++) {
+              accumulatedPath = accumulatedPath ? accumulatedPath + "/" + parts[i] : parts[i];
+              breadcrumbHtml += `
+                  <span class="desktop-text" style="margin:0 0.3rem">/</span>
+                  <a href="/research/?path=${encodeURIComponent(accumulatedPath)}" class="desktop-text bc-path-link" style="color:#aaa; text-decoration:none;">${parts[i]}</a>
+              `;
+          }
+      }
+
+      breadcrumbHtml += `
+        <span style="margin:0 0.3rem">/</span> 
+        <a href="#" id="bc-title">
+          <span class="desktop-text">${postMeta.title || "문서"}</span>
+          <span class="mobile-text">${(postMeta.title || "문서").charAt(0)}</span>
+        </a> 
+        <span id="bc-toc-container"></span>
+      `;
+
+      breadcrumb.innerHTML = breadcrumbHtml;
+
+      const bcTitle = document.getElementById("bc-title");
+      if (bcTitle) {
+          bcTitle.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
+      }
+    }
+
     const tagContainer = document.getElementById("tag-container");
     const tabs = postMeta.tabs;
 
@@ -101,6 +142,9 @@ async function renderPost(id, container) {
 }
 
 async function loadTabContent(tabInfo, container, postMeta) {
+    const bcTocContainer = document.getElementById("bc-toc-container");
+    if (bcTocContainer) bcTocContainer.innerHTML = "";
+
     container.innerHTML = '<p>로딩 중...</p>';
     try {
         if (tabInfo.type === 'markdown') {
@@ -261,11 +305,51 @@ async function renderMarkdownTab(markdownText, container, postMeta) {
           floatingTocContainer.appendChild(rootUl);
       }
 
+      const bcTocContainer = document.getElementById("bc-toc-container");
+
       const updateToc = () => {
+        let activeA = null;
         if (floatingTocContainer) {
             floatingTocContainer.querySelectorAll('a').forEach(a => a.classList.remove('active'));
-            const activeA = floatingTocContainer.querySelector(`a[data-toc-id="${activeHeading.id}"]`);
+            activeA = floatingTocContainer.querySelector(`a[data-toc-id="${activeHeading.id}"]`);
             if (activeA) activeA.classList.add('active');
+        }
+        
+        if (bcTocContainer && activeA) {
+            let pathElements = [];
+            let currentLi = activeA.closest('li');
+            while (currentLi) {
+                const a = currentLi.querySelector(':scope > a');
+                if (a) pathElements.unshift({ text: a.innerText, id: a.getAttribute('data-toc-id') });
+                const parentUl = currentLi.parentElement;
+                if (!parentUl || parentUl.parentElement.tagName !== 'LI') break;
+                currentLi = parentUl.parentElement;
+            }
+
+            let html = "";
+            pathElements.forEach(item => {
+                html += `
+                    <span class="desktop-text" style="margin:0 0.3rem">/</span> 
+                    <a href="#${item.id}" class="desktop-text bc-toc-link" style="color:#aaa; text-decoration:none;" data-target="${item.id}">
+                      ${item.text}
+                    </a>
+                `;
+            });
+            bcTocContainer.innerHTML = html;
+            
+            bcTocContainer.querySelectorAll('.bc-toc-link').forEach(link => {
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    const targetId = link.getAttribute('data-target');
+                    const targetEl = document.getElementById(targetId);
+                    if (targetEl) {
+                        const targetY = targetEl.getBoundingClientRect().top + window.scrollY - 100;
+                        window.scrollTo({ top: targetY, behavior: "smooth" });
+                    }
+                };
+            });
+        } else if (bcTocContainer) {
+            bcTocContainer.innerHTML = "";
         }
       };
 
@@ -309,17 +393,50 @@ async function renderMarkdownTab(markdownText, container, postMeta) {
 
 async function renderPostList(container) {
   try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const activePath = urlParams.get("path") || "";
+
     const breadcrumb = document.getElementById("nav-breadcrumb");
-    if (breadcrumb) breadcrumb.innerHTML = ""; // 목록에서는 경로 숨김
+    if (breadcrumb) {
+        if (activePath) {
+            const parts = activePath.split('/');
+            let breadcrumbHtml = `
+              <a href="/research/">
+                <span class="desktop-text">연구기록</span>
+                <span class="mobile-text">연</span>
+              </a> 
+            `;
+            let acc = "";
+            for(let i=0; i<parts.length; i++) {
+                acc = acc ? acc + "/" + parts[i] : parts[i];
+                breadcrumbHtml += `
+                   <span class="desktop-text" style="margin:0 0.3rem">/</span>
+                   <a href="/research/?path=${encodeURIComponent(acc)}" class="desktop-text bc-path-link" style="color:#aaa; text-decoration:none;">${parts[i]}</a>
+                `;
+            }
+            breadcrumb.innerHTML = breadcrumbHtml;
+        } else {
+            breadcrumb.innerHTML = "";
+        }
+    }
 
     const response = await fetch("../content/research/list.json");
     if (!response.ok) throw new Error("목록을 불러올 수 없습니다.");
 
     const listData = await response.json();
 
+    const filteredList = listData.filter(post => {
+      if (activePath) {
+        if (!post.id.startsWith(activePath + "/") && post.id !== activePath) {
+          return false;
+        }
+      }
+      return true;
+    });
+
     container.innerHTML = `
         <ul class="research-list blog-list">
-            ${listData
+            ${filteredList
               .map(
                 (post) => `
                 <li>

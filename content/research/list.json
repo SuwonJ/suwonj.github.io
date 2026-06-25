@@ -1,28 +1,53 @@
 [
-  { 
-    "id": "math-ee", 
-    "title": "Mathematics Extended Essay", 
+  {
+    "id": "math-ee",
+    "title": "IB MATHEMATICS ANALYSIS AND APPROACHES EE",
     "date": "2025-02-19",
     "tabs": [
-      { "id": "markdown", "label": "마크다운", "type": "markdown", "file": "math-ee/matheev2.md" },
-      { "id": "pdf", "label": "논문 (PDF)", "type": "pdf", "file": "math-ee/matheev2.pdf" }
+      {
+        "id": "markdown",
+        "label": "마크다운",
+        "type": "markdown",
+        "file": "math-ee/matheev2.md"
+      },
+      {
+        "id": "pdf",
+        "label": "논문 (PDF)",
+        "type": "pdf",
+        "file": "math-ee/matheev2.pdf"
+      }
     ]
   },
-  { 
-    "id": "math-ia-current", 
-    "title": "Mathematics Internal Assessment (Current)", 
+  {
+    "id": "math-ia-current",
+    "title": "IB MATHEMATICS ANALYSIS AND APPROACHES IA (Revised)",
     "date": "2025-06-25",
     "tabs": [
-      { "id": "markdown", "label": "마크다운", "type": "markdown", "file": "math-ia-current/mathiav2.md" },
-      { "id": "pdf", "label": "논문 (PDF)", "type": "pdf", "file": "math-ia-current/mathiav2.pdf" }
+      {
+        "id": "markdown",
+        "label": "마크다운",
+        "type": "markdown",
+        "file": "math-ia-current/mathiav2.md"
+      },
+      {
+        "id": "pdf",
+        "label": "논문 (PDF)",
+        "type": "pdf",
+        "file": "math-ia-current/mathiav2.pdf"
+      }
     ]
   },
-  { 
-    "id": "math-ia-old", 
-    "title": "Mathematics Internal Assessment (Old Version)", 
+  {
+    "id": "math-ia-old",
+    "title": "IB MATHEMATICS ANALYSIS AND APPROACHES IA",
     "date": "2024-11-01",
     "tabs": [
-      { "id": "pdf", "label": "논문 원본 (PDF)", "type": "pdf", "file": "math-ia-old/mathia-old.pdf" }
+      {
+        "id": "pdf",
+        "label": "논문 원본 (PDF)",
+        "type": "pdf",
+        "file": "math-ia-old/mathia-old.pdf"
+      }
     ]
   }
 ]

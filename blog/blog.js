@@ -236,11 +236,7 @@ async function renderPost(id, container) {
           <span class="desktop-text">${postMeta.title || "문서"}</span>
           <span class="mobile-text">${(postMeta.title || "문서").charAt(0)}</span>
         </a> 
-        <span id="bc-separator" style="display:none;margin:0 0.3rem">/</span> 
-        <a href="#" id="bc-toc" style="display:none;">
-          <span class="desktop-text"></span>
-          <span class="mobile-text"></span>
-        </a>
+        <span id="bc-toc-container"></span>
       `;
 
       breadcrumb.innerHTML = breadcrumbHtml;
@@ -251,10 +247,9 @@ async function renderPost(id, container) {
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
 
-      const bcToc = document.getElementById("bc-toc");
-      const bcSeparator = document.getElementById("bc-separator");
+      const bcTocContainer = document.getElementById("bc-toc-container");
 
-      if (headings.length > 0 && bcToc) {
+      if (headings.length > 0) {
         let activeHeading = headings[0];
         
         const floatingTocContainer = document.getElementById("floating-toc");
@@ -300,19 +295,48 @@ async function renderPost(id, container) {
         }
 
         const updateToc = () => {
-          const tocText = activeHeading.innerText;
-          const dt = bcToc.querySelector('.desktop-text');
-          const mt = bcToc.querySelector('.mobile-text');
-          if (dt) dt.innerText = tocText;
-          if (mt) mt.innerText = tocText.charAt(0);
-          bcToc.href = "#" + activeHeading.id;
-          bcToc.style.display = "inline";
-          bcSeparator.style.display = "inline";
-
+          let activeA = null;
           if (floatingTocContainer) {
               floatingTocContainer.querySelectorAll('a').forEach(a => a.classList.remove('active'));
-              const activeA = floatingTocContainer.querySelector(`a[data-toc-id="${activeHeading.id}"]`);
+              activeA = floatingTocContainer.querySelector(`a[data-toc-id="${activeHeading.id}"]`);
               if (activeA) activeA.classList.add('active');
+          }
+
+          if (bcTocContainer && activeA) {
+              let pathElements = [];
+              let currentLi = activeA.closest('li');
+              while (currentLi) {
+                  const a = currentLi.querySelector(':scope > a');
+                  if (a) pathElements.unshift({ text: a.innerText, id: a.getAttribute('data-toc-id') });
+                  const parentUl = currentLi.parentElement;
+                  if (!parentUl || parentUl.parentElement.tagName !== 'LI') break;
+                  currentLi = parentUl.parentElement;
+              }
+
+              let html = "";
+              pathElements.forEach(item => {
+                  html += `
+                      <span class="desktop-text" style="margin:0 0.3rem">/</span> 
+                      <a href="#${item.id}" class="desktop-text bc-toc-link" style="color:#aaa; text-decoration:none;" data-target="${item.id}">
+                        ${item.text}
+                      </a>
+                  `;
+              });
+              bcTocContainer.innerHTML = html;
+              
+              bcTocContainer.querySelectorAll('.bc-toc-link').forEach(link => {
+                  link.onclick = (e) => {
+                      e.preventDefault();
+                      const targetId = link.getAttribute('data-target');
+                      const targetEl = document.getElementById(targetId);
+                      if (targetEl) {
+                          const targetY = targetEl.getBoundingClientRect().top + window.scrollY - 100;
+                          window.scrollTo({ top: targetY, behavior: "smooth" });
+                      }
+                  };
+              });
+          } else if (bcTocContainer) {
+              bcTocContainer.innerHTML = "";
           }
         };
 
@@ -327,11 +351,8 @@ async function renderPost(id, container) {
 
         headings.forEach(h => observer.observe(h));
         
-        bcToc.addEventListener("click", (e) => {
-          e.preventDefault();
-          const targetY = activeHeading.getBoundingClientRect().top + window.scrollY - 100;
-          window.scrollTo({ top: targetY, behavior: "smooth" });
-        });
+      } else if (bcTocContainer) {
+        bcTocContainer.innerHTML = "";
       }
     }
 
