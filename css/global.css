@@ -39,7 +39,7 @@ main {
         to bottom,
         transparent 0px,
         transparent 80px,
-        black 180px,
+        black var(--mask-fade-end, 180px),
         black 100%
     );
     -webkit-mask-size: 100vw 100vh;
@@ -51,7 +51,7 @@ main {
         to bottom,
         transparent 0px,
         transparent 80px,
-        black 180px,
+        black var(--mask-fade-end, 180px),
         black 100%
     );
     mask-size: 100vw 100vh;
@@ -229,20 +229,6 @@ h1 {
     main {
         padding: 1.5rem !important;
         padding-top: 100px !important;
-        -webkit-mask-image: linear-gradient(
-            to bottom,
-            transparent 0px,
-            transparent 50px,
-            black 100px,
-            black 100%
-        );
-        mask-image: linear-gradient(
-            to bottom,
-            transparent 0px,
-            transparent 50px,
-            black 100px,
-            black 100%
-        );
     }
 
     .navbar {

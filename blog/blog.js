@@ -356,10 +356,19 @@ async function renderPostList(container) {
     container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
   }
 }
-window.addEventListener("scroll", () => {
+const updateScrollMask = () => {
+  const scrollY = window.scrollY;
   const mainEl = document.querySelector("main");
-  if (mainEl) mainEl.style.setProperty("--scroll-y", `${window.scrollY}px`);
-});
+  if (mainEl) {
+    mainEl.style.setProperty("--scroll-y", `${scrollY}px`);
+    // 스크롤이 0일 때는 모바일/데스크탑 모두 대제목이 온전히 선명하게 나오도록 페이드 끝점을 80px로 가깝게 하고,
+    // 스크롤함에 따라 180px로 점진적으로 늘어남 (페이드 시작점이 80px이므로 스크롤 시 부드럽게 페이드 아웃)
+    const fadeEnd = Math.min(180, 80 + scrollY);
+    mainEl.style.setProperty("--mask-fade-end", `${fadeEnd}px`);
+  }
+};
+window.addEventListener("scroll", updateScrollMask);
+updateScrollMask();
 
 // blogBg를 전역으로 노출하여 click 이벤트에서 접근 가능하게 함
 let blogBgInstance = null;
