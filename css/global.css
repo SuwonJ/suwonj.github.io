@@ -257,6 +257,11 @@ h1 {
     .mobile-text {
         display: inline;
     }
+
+    .bc-path-link:hover {
+        color: #fff !important;
+        text-decoration: underline !important;
+    }
 }
 
 body {
@@ -281,7 +286,7 @@ mark {
     margin: 0 0 2rem 0;
     font-size: 0.95rem;
     color: #555555;
-    font-family: monospace; /* 조금 더 개발자스러운 폰트 느낌 */
+    font-family: "Google Sans Code", monospace;
 }
 
 .tag-list span {
@@ -303,11 +308,13 @@ mark {
 #content img {
     cursor: zoom-in;
     border-radius: 8px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
 }
 #content img:hover {
     transform: scale(1.01);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 #lightbox {
     position: fixed;
@@ -334,7 +341,7 @@ mark {
     max-width: 90vw;
     max-height: 90vh;
     border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     transform: scale(0.95);
     transition: transform 0.3s ease;
 }
@@ -348,6 +355,7 @@ mark {
 }
 #floating-tree {
     display: none;
+    font-family: Ridibatang;
 }
 @media (min-width: 1200px) {
     main {
@@ -466,7 +474,12 @@ mark {
 }
 
 #content th {
-    background-color: rgba(255, 255, 255, 0.04); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
+    background-color: rgba(
+        255,
+        255,
+        255,
+        0.04
+    ); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
     color: #ffffff;
     font-weight: 600;
     border-bottom: 2px solid rgba(255, 255, 255, 0.35);
@@ -476,9 +489,8 @@ mark {
     background: rgba(255, 255, 255, 0.1);
 }
 
-/* 리눅스 Tree 스타일의 뷰 */
 .tree-view {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-family: Ridibatang;
     font-size: 0.95rem;
     color: #ddd;
     margin-top: 1rem;
@@ -510,7 +522,8 @@ mark {
     padding: 0;
 }
 
-.tree-view li::before, .tree-view li::after {
+.tree-view li::before,
+.tree-view li::after {
     content: "";
     position: absolute;
     left: -1rem;
@@ -608,6 +621,6 @@ mark {
 .pdf-page-canvas {
     max-width: 100%;
     height: auto;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     border: 1px solid #333;
 }

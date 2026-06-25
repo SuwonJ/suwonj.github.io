@@ -46,9 +46,10 @@ function renderTreeHtml(node, currentId = null) {
   
   files.forEach((file) => {
     const isActive = currentId === file.id;
+    const dateHtml = !currentId ? ` <span class="post-date" style="font-size:0.85em;color:#888;">(${file.date})</span>` : '';
     html += `
       <li>
-        <a href="/blog/?id=${file.id}" ${isActive ? 'class="active" style="color:#fff;font-weight:bold;"' : ''}>${file.title}</a>
+        <a href="/blog/?id=${file.id}" ${isActive ? 'class="active" style="color:#fff;font-weight:bold;"' : ''}>${file.title}</a>${dateHtml}
       </li>
     `;
   });
@@ -219,10 +220,12 @@ async function renderPost(id, container) {
 
       if (postMeta && postMeta.id) {
           const parts = postMeta.id.split('/');
+          let accumulatedPath = "";
           for (let i = 0; i < parts.length - 1; i++) {
+              accumulatedPath = accumulatedPath ? accumulatedPath + "/" + parts[i] : parts[i];
               breadcrumbHtml += `
-                  <span style="margin:0 0.3rem">/</span>
-                  <span style="color:#aaa">${parts[i]}</span>
+                  <span class="desktop-text" style="margin:0 0.3rem">/</span>
+                  <a href="/blog/?path=${encodeURIComponent(accumulatedPath)}" class="desktop-text bc-path-link" style="color:#aaa; text-decoration:none;">${parts[i]}</a>
               `;
           }
       }
@@ -377,6 +380,28 @@ async function renderPostList(container) {
 
     const urlParams = new URLSearchParams(window.location.search);
     const activeTags = urlParams.get("tags") ? urlParams.get("tags").split(",") : [];
+    const activePath = urlParams.get("path") || "";
+
+    if (activePath) {
+        if (breadcrumb) {
+            const parts = activePath.split('/');
+            let breadcrumbHtml = `
+              <a href="/blog/">
+                <span class="desktop-text">블로그</span>
+                <span class="mobile-text">블</span>
+              </a> 
+            `;
+            let acc = "";
+            for(let i=0; i<parts.length; i++) {
+                acc = acc ? acc + "/" + parts[i] : parts[i];
+                breadcrumbHtml += `
+                   <span class="desktop-text" style="margin:0 0.3rem">/</span>
+                   <a href="/blog/?path=${encodeURIComponent(acc)}" class="desktop-text bc-path-link" style="color:#aaa; text-decoration:none;">${parts[i]}</a>
+                `;
+            }
+            breadcrumb.innerHTML = breadcrumbHtml;
+        }
+    }
 
     const tagHtml = `
         <div class="tag-list">
@@ -417,6 +442,11 @@ async function renderPostList(container) {
     }
 
     const filteredList = listData.filter(post => {
+      if (activePath) {
+        if (!post.id.startsWith(activePath + "/") && post.id !== activePath) {
+          return false;
+        }
+      }
       if (activeTags.length === 0) return true;
       if (!post.tags) return false;
       // OR 검색
