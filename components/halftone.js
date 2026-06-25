@@ -98,11 +98,13 @@ export class HalftoneBackground {
         const isFixed = window.getComputedStyle(el).position === "fixed";
         const rect = el.getBoundingClientRect();
         this.targetButtonRects.push({
+          el: el,
           left: rect.left,
           right: rect.right,
           top: isFixed ? rect.top : rect.top + scrollY,
           bottom: isFixed ? rect.bottom : rect.bottom + scrollY,
           isFixed: isFixed,
+          pulseValue: 0,
         });
       });
     });
@@ -116,6 +118,23 @@ export class HalftoneBackground {
       this.currentButtonRects = JSON.parse(
         JSON.stringify(this.targetButtonRects),
       );
+      for (let i = 0; i < this.currentButtonRects.length; i++) {
+        this.currentButtonRects[i].el = this.targetButtonRects[i].el;
+        this.currentButtonRects[i].pulseValue = 0;
+      }
+    } else {
+      for (let i = 0; i < this.currentButtonRects.length; i++) {
+        this.currentButtonRects[i].el = this.targetButtonRects[i].el;
+      }
+    }
+  }
+
+  pulseButton(element) {
+    for (let i = 0; i < this.currentButtonRects.length; i++) {
+      if (this.currentButtonRects[i].el === element) {
+        this.currentButtonRects[i].pulseValue = 1.0;
+        break;
+      }
     }
   }
 
@@ -221,17 +240,39 @@ export class HalftoneBackground {
     }
 
     for (let i = 0; i < this.currentButtonRects.length; i++) {
+      let tTop = this.targetButtonRects[i].top;
+      let tBottom = this.targetButtonRects[i].bottom;
+      let tLeft = this.targetButtonRects[i].left;
+      let tRight = this.targetButtonRects[i].right;
+
+      // 스크롤 멈춤 시 격자에 스냅 (UI 애매한 위치로 인한 2줄 흐림 현상 방지)
+      if (!this.isScrolling) {
+        if (this.targetButtonRects[i].isFixed) {
+          const absTop = tTop + scrollY;
+          const absBottom = tBottom + scrollY;
+          tTop = Math.round(absTop / this.gap) * this.gap - scrollY;
+          tBottom = Math.round(absBottom / this.gap) * this.gap - scrollY;
+        } else {
+          tTop = Math.round(tTop / this.gap) * this.gap;
+          tBottom = Math.round(tBottom / this.gap) * this.gap;
+        }
+        // X 좌표의 경우 점들이 gap/2 부터 시작하므로 해당 오프셋에 맞게 스냅
+        tLeft = Math.round((tLeft - this.gap / 2) / this.gap) * this.gap + this.gap / 2;
+        tRight = Math.round((tRight - this.gap / 2) / this.gap) * this.gap + this.gap / 2;
+      }
+
       this.currentButtonRects[i].top +=
-        (this.targetButtonRects[i].top - this.currentButtonRects[i].top) * 0.15;
+        (tTop - this.currentButtonRects[i].top) * 0.15;
       this.currentButtonRects[i].bottom +=
-        (this.targetButtonRects[i].bottom - this.currentButtonRects[i].bottom) *
-        0.15;
+        (tBottom - this.currentButtonRects[i].bottom) * 0.15;
       this.currentButtonRects[i].left +=
-        (this.targetButtonRects[i].left - this.currentButtonRects[i].left) *
-        0.15;
+        (tLeft - this.currentButtonRects[i].left) * 0.15;
       this.currentButtonRects[i].right +=
-        (this.targetButtonRects[i].right - this.currentButtonRects[i].right) *
-        0.15;
+        (tRight - this.currentButtonRects[i].right) * 0.15;
+      
+      if (this.currentButtonRects[i].pulseValue > 0) {
+        this.currentButtonRects[i].pulseValue *= 0.9;
+      }
     }
 
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -310,22 +351,45 @@ export class HalftoneBackground {
           }
         }
 
-        let isButton = false;
+        let maxButtonEdgeIntensity = 0;
+        let activeEdgePulse = 0;
+
         for (let rect of this.currentButtonRects) {
           const checkY = rect.isFixed ? y : absY;
-          if (
-            x >= rect.left &&
-            x <= rect.right &&
-            checkY >= rect.top &&
-            checkY <= rect.bottom
-          ) {
-            isButton = true;
-            break;
+
+          // 4면에 hr과 동일한 빛나는 선(Edge)을 그리기 위한 계산 (안쪽 채우기 없음)
+          const distTop = Math.abs(checkY - rect.top);
+          const distBottom = Math.abs(checkY - rect.bottom);
+          const distLeft = Math.abs(x - rect.left);
+          const distRight = Math.abs(x - rect.right);
+
+          // 교차로(Corner)에서 선이 튀어나가는 현상 방지: 정확히 모서리까지만 렌더링되도록 -1, +1 오차만 허용
+          const xInBounds = x >= rect.left - 1 && x <= rect.right + 1;
+          const yInBounds = checkY >= rect.top - 1 && checkY <= rect.bottom + 1;
+
+          let edgeDist = Infinity;
+          if (xInBounds) {
+             edgeDist = Math.min(edgeDist, distTop, distBottom);
+          }
+          if (yInBounds) {
+             edgeDist = Math.min(edgeDist, distLeft, distRight);
+          }
+
+          if (edgeDist < this.gap) {
+             const normalizedDist = edgeDist / this.gap;
+             // 밝기를 높이기 위해 지수를 2.5에서 1.8로 낮춰 약간 더 두껍고 밝게 만듦
+             const intensity = Math.pow(Math.cos(normalizedDist * Math.PI / 2), 1.8);
+             if (intensity > maxButtonEdgeIntensity) {
+                 maxButtonEdgeIntensity = intensity;
+                 activeEdgePulse = rect.pulseValue || 0;
+             }
           }
         }
 
-        if (maxBoundaryIntensity > 0 || isButton) {
-          const intensity = Math.max(isButton ? 1 : 0, maxBoundaryIntensity);
+        const finalBoundaryIntensity = Math.max(maxBoundaryIntensity, maxButtonEdgeIntensity);
+
+        if (finalBoundaryIntensity > 0) {
+          const intensity = finalBoundaryIntensity;
 
           const lineFlow = Math.sin(x * 0.015 - time * 0.5);
 
@@ -335,6 +399,12 @@ export class HalftoneBackground {
           if (hoverRatio > 0) {
             boundaryRadius += 5 * hoverRatio * intensity;
             boundaryOpacity += 0.5 * hoverRatio * intensity;
+          }
+
+          // 클릭 시 테두리(Edge) 선들이 크게 빛나며 펄스 반응!
+          if (activeEdgePulse > 0.01) {
+            boundaryRadius += 10 * activeEdgePulse * maxButtonEdgeIntensity;
+            boundaryOpacity += 0.4 * activeEdgePulse * maxButtonEdgeIntensity;
           }
 
           radius = Math.max(radius, boundaryRadius);

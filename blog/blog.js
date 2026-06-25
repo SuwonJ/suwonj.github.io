@@ -5,20 +5,14 @@ async function init() {
   if (typeof window.markedKatex === "function") {
     marked.use(window.markedKatex({ throwOnError: false, nonStandard: true }));
   }
-  if (typeof hljs !== 'undefined') {
-    marked.setOptions({
-      highlight: function(code, lang) {
-        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-        return hljs.highlight(code, { language }).value;
-      }
-    });
-  }
 
   renderNavbar();
   const blogBg = new HalftoneBackground("halftone-canvas", {
     iconSrc: null,
     boundarySelectors: [".navbar", "hr"],
+    buttonSelectors: ["#content pre"]
   });
+  window.blogBg = blogBg; // 전역 스코프 등록
   blogBg.init();
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -80,6 +74,28 @@ async function renderPost(id, container) {
     text = text.replace(/\$\$\s*([^\n])/g, "$$$$\n\n$1");
     
     container.innerHTML = marked.parse(text);
+
+    // Highlight.js 적용, 언어 태그 추가 및 복사/펄스 기능 연결
+    container.querySelectorAll('pre code').forEach((block) => {
+        const pre = block.parentElement;
+        const langMatch = block.className.match(/language-(\w+)/);
+        if (langMatch && langMatch[1]) {
+            pre.setAttribute('data-lang', langMatch[1].toUpperCase());
+        }
+        if (typeof hljs !== 'undefined') hljs.highlightElement(block);
+    });
+    
+    container.querySelectorAll('pre').forEach(pre => {
+        pre.addEventListener('click', async () => {
+            const codeText = pre.querySelector('code').innerText;
+            try {
+                await navigator.clipboard.writeText(codeText);
+                if (window.blogBg) window.blogBg.pulseButton(pre);
+            } catch (err) {
+                console.error('Failed to copy', err);
+            }
+        });
+    });
 
     // Breadcrumb TOC 로직
     const titleEl = document.getElementById("page-title");
@@ -312,4 +328,12 @@ window.addEventListener("scroll", () => {
   const mainEl = document.querySelector("main");
   if (mainEl) mainEl.style.setProperty("--scroll-y", `${window.scrollY}px`);
 });
-init();
+
+// blogBg를 전역으로 노출하여 click 이벤트에서 접근 가능하게 함
+let blogBgInstance = null;
+
+async function bootstrap() {
+    blogBgInstance = await init();
+}
+
+bootstrap();

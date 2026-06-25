@@ -1,6 +1,10 @@
 ## 범위
 - p108-120
 
+```python
+import matplotlib as plt
+print("Hello!")
+```
 ## 정리
 - 집합류: 부분집합의 모임.
 - ==멱집합(Power Set)==: 집합S의 모든 부분 집합을 원소로 가지는 집합. $P(s)$혹 $2^S$로 표기
