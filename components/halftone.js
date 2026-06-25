@@ -12,6 +12,7 @@ export class HalftoneBackground {
 
     this.boundarySelectors = options.boundarySelectors || [".navbar", "hr"];
     this.buttonSelectors = options.buttonSelectors || [];
+    this.iconScale = options.iconScale !== undefined ? options.iconScale : 0.7;
 
     this.currentBoundaryYs = [];
     this.targetBoundaryYs = [];
@@ -48,48 +49,21 @@ export class HalftoneBackground {
 
     this.targetBoundaryYs = [];
 
-    // `.navbar` 등 일반적인 selector 처리
+    // 모든 selector를 동일하게 처리 — 매칭되는 요소 전부 boundary로 등록
     this.boundarySelectors.forEach((selector) => {
       const elements = Array.from(document.querySelectorAll(selector));
       if (elements.length === 0) return;
 
-      if (selector === "hr") {
-        // hr의 경우 화면에 여러 개가 있으면 선이 겹쳐서 나타나므로(두 줄 현상 방지),
-        // 화면 중심점과 가장 가까운 단 하나의 hr만 활성화하여 선이 부드럽게 이동하게 합니다.
-        const viewportCenter = window.innerHeight / 2;
-        let closestEl = elements[0];
-        let minDistance = Infinity;
-        
-        elements.forEach(el => {
-          const rect = el.getBoundingClientRect();
-          const dist = Math.abs(rect.top - viewportCenter);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestEl = el;
-          }
-        });
-
-        const isFixed = window.getComputedStyle(closestEl).position === "fixed";
-        const rect = closestEl.getBoundingClientRect();
+      elements.forEach((el) => {
+        const isFixed = window.getComputedStyle(el).position === "fixed";
+        const rect = el.getBoundingClientRect();
         this.targetBoundaryYs.push({
           position: isFixed ? rect.bottom : rect.bottom + scrollY,
           left: rect.left,
           right: rect.right,
           isFixed: isFixed,
         });
-      } else {
-        // 일반 selector는 전부 다 추가 (예: .navbar)
-        elements.forEach((el) => {
-          const isFixed = window.getComputedStyle(el).position === "fixed";
-          const rect = el.getBoundingClientRect();
-          this.targetBoundaryYs.push({
-            position: isFixed ? rect.bottom : rect.bottom + scrollY,
-            left: rect.left,
-            right: rect.right,
-            isFixed: isFixed,
-          });
-        });
-      }
+      });
     });
 
     this.targetButtonRects = [];
@@ -138,6 +112,24 @@ export class HalftoneBackground {
     }
   }
 
+  // 런타임에 아이콘 교체 (연락처 호버 등)
+  setIcon(src) {
+    if (!src) {
+      this.iconData = null;
+      this.iconSrc = null;
+      return;
+    }
+    if (src === this.iconSrc) return;
+    this.iconSrc = src;
+    const img = new Image();
+    img.onload = () => {
+      if (this.iconSrc !== src) return; // 로딩 중 src가 바뀐 경우 무시
+      this.iconImg = img;
+      this.cacheIconData();
+    };
+    img.src = src;
+  }
+
   cacheIconData() {
     if (!this.iconImg.complete) return;
     const imgWidth = this.iconImg.naturalWidth || 234;
@@ -145,7 +137,7 @@ export class HalftoneBackground {
 
     const offCanvas = document.createElement("canvas");
     const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
-    this.iconRect.w = Math.floor(Math.min(window.innerWidth * 0.7, 900));
+    this.iconRect.w = Math.floor(Math.min(window.innerWidth * this.iconScale, 900));
     this.iconRect.h = Math.floor(
       (imgHeight / imgWidth) *
         this.iconRect.w,

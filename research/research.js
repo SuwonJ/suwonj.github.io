@@ -29,6 +29,14 @@ async function renderPost(id, container) {
     const markdownText = await response.text();
     container.innerHTML = marked.parse(markdownText);
 
+    // 테이블 반응형 래핑
+    container.querySelectorAll('table').forEach(table => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-wrapper';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+    });
+
     if (typeof renderMathInElement === "function") {
       renderMathInElement(container, {
         delimiters: [

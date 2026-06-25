@@ -169,6 +169,12 @@ h1 {
     color: #888;
     font-family: "Google Sans Code", monospace;
     text-transform: uppercase;
+    transition: color 0.2s ease;
+}
+
+#content pre.copied[data-lang]::before {
+    color: #ffffff;
+    font-weight: bold;
 }
 
 #content code {
@@ -411,4 +417,42 @@ mark {
     #floating-toc ul ul ul a.active::before {
         left: -17px;
     }
+}
+
+/* --- Table Styles --- */
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin: 2rem 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+#content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.95rem;
+    color: #e0e0e0;
+}
+
+#content th,
+#content td {
+    padding: 0.8rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2); /* 깔끔하고 얇은 반투명 흰색 선 */
+    text-align: left;
+}
+
+#content th {
+    background-color: rgba(255, 255, 255, 0.04); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
+    color: #ffffff;
+    font-weight: 600;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+#content tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.01); /* 홀짝 라인 구분 */
+}
+
+#content tr:hover {
+    background-color: rgba(255, 255, 255, 0.03); /* 호버 시 미세하게 밝아짐 */
 }

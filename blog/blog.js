@@ -27,7 +27,13 @@ async function init() {
         const postMeta = listData.find((p) => p.id === postId);
         if (postMeta) {
           const titleEl = document.getElementById("page-title");
-          if (titleEl) titleEl.innerText = postMeta.title;
+          if (titleEl) {
+            if (postMeta.date) {
+              titleEl.innerHTML = `${postMeta.title} <span class="post-title-date" style="font-size: 1.1rem; color: #888; margin-left: 1rem; font-weight: normal; font-family: monospace;">(${postMeta.date})</span>`;
+            } else {
+              titleEl.innerText = postMeta.title;
+            }
+          }
         }
       }
     } catch (e) {}
@@ -75,6 +81,14 @@ async function renderPost(id, container) {
     
     container.innerHTML = marked.parse(text);
 
+    // 테이블 반응형 래핑
+    container.querySelectorAll('table').forEach(table => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-wrapper';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+    });
+
     // Highlight.js 적용, 언어 태그 추가 및 복사/펄스 기능 연결
     container.querySelectorAll('pre code').forEach((block) => {
         const pre = block.parentElement;
@@ -87,10 +101,22 @@ async function renderPost(id, container) {
     
     container.querySelectorAll('pre').forEach(pre => {
         pre.addEventListener('click', async () => {
+            const selection = window.getSelection().toString();
+            if (selection && selection.length > 0) return; // 드래그 선택 중이면 복사 방지
+            
             const codeText = pre.querySelector('code').innerText;
             try {
                 await navigator.clipboard.writeText(codeText);
                 if (window.blogBg) window.blogBg.pulseButton(pre);
+                
+                // 복사 피드백 애니메이션
+                const originalLang = pre.getAttribute('data-lang') || '';
+                pre.setAttribute('data-lang', 'COPIED!');
+                pre.classList.add('copied');
+                setTimeout(() => {
+                    pre.setAttribute('data-lang', originalLang);
+                    pre.classList.remove('copied');
+                }, 1500);
             } catch (err) {
                 console.error('Failed to copy', err);
             }
@@ -99,7 +125,13 @@ async function renderPost(id, container) {
 
     // Breadcrumb TOC 로직
     const titleEl = document.getElementById("page-title");
-    if (titleEl && postMeta.title) titleEl.innerText = postMeta.title;
+    if (titleEl && postMeta.title) {
+      if (postMeta.date) {
+        titleEl.innerHTML = `${postMeta.title} <span class="post-title-date" style="font-size: 1.1rem; color: #888; margin-left: 1rem; font-weight: normal; font-family: monospace;">(${postMeta.date})</span>`;
+      } else {
+        titleEl.innerText = postMeta.title;
+      }
+    }
 
     const headings = container.querySelectorAll("h1, h2, h3");
     headings.forEach((h, i) => {
