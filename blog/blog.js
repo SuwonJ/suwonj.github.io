@@ -85,10 +85,20 @@ async function renderPost(id, container) {
     const breadcrumb = document.getElementById("nav-breadcrumb");
     if (breadcrumb) {
       breadcrumb.innerHTML = `
-        <a href="/blog/">블로그</a> <span style="margin:0 0.3rem">/</span> 
-        <a href="#" id="bc-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${postMeta.title || "문서"}</a> 
+        <a href="/blog/">
+          <span class="desktop-text">블로그</span>
+          <span class="mobile-text">블</span>
+        </a> 
+        <span style="margin:0 0.3rem">/</span> 
+        <a href="#" id="bc-title">
+          <span class="desktop-text">${postMeta.title || "문서"}</span>
+          <span class="mobile-text">${(postMeta.title || "문서").charAt(0)}</span>
+        </a> 
         <span id="bc-separator" style="display:none;margin:0 0.3rem">/</span> 
-        <a href="#" id="bc-toc" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;"></a>
+        <a href="#" id="bc-toc" style="display:none;">
+          <span class="desktop-text"></span>
+          <span class="mobile-text"></span>
+        </a>
       `;
 
       const bcTitle = document.getElementById("bc-title");
@@ -103,7 +113,11 @@ async function renderPost(id, container) {
       if (headings.length > 0 && bcToc) {
         let activeHeading = headings[0];
         const updateToc = () => {
-          bcToc.innerText = activeHeading.innerText;
+          const tocText = activeHeading.innerText;
+          const dt = bcToc.querySelector('.desktop-text');
+          const mt = bcToc.querySelector('.mobile-text');
+          if (dt) dt.innerText = tocText;
+          if (mt) mt.innerText = tocText.charAt(0);
           bcToc.href = "#" + activeHeading.id;
           bcToc.style.display = "inline";
           bcSeparator.style.display = "inline";

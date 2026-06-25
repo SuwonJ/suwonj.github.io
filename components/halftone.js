@@ -22,6 +22,7 @@ export class HalftoneBackground {
     this.iconRect = { x: 0, y: 0, w: 400, h: 400 };
     this.iconData = null;
     this.iconImg = new Image();
+    this.isScrolling = false;
   }
 
   init() {
@@ -46,17 +47,49 @@ export class HalftoneBackground {
     const scrollY = window.scrollY;
 
     this.targetBoundaryYs = [];
+
+    // `.navbar` 등 일반적인 selector 처리
     this.boundarySelectors.forEach((selector) => {
-      document.querySelectorAll(selector).forEach((el) => {
-        const isFixed = window.getComputedStyle(el).position === "fixed";
-        const rect = el.getBoundingClientRect();
+      const elements = Array.from(document.querySelectorAll(selector));
+      if (elements.length === 0) return;
+
+      if (selector === "hr") {
+        // hr의 경우 화면에 여러 개가 있으면 선이 겹쳐서 나타나므로(두 줄 현상 방지),
+        // 화면 중심점과 가장 가까운 단 하나의 hr만 활성화하여 선이 부드럽게 이동하게 합니다.
+        const viewportCenter = window.innerHeight / 2;
+        let closestEl = elements[0];
+        let minDistance = Infinity;
+        
+        elements.forEach(el => {
+          const rect = el.getBoundingClientRect();
+          const dist = Math.abs(rect.top - viewportCenter);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestEl = el;
+          }
+        });
+
+        const isFixed = window.getComputedStyle(closestEl).position === "fixed";
+        const rect = closestEl.getBoundingClientRect();
         this.targetBoundaryYs.push({
           position: isFixed ? rect.bottom : rect.bottom + scrollY,
           left: rect.left,
           right: rect.right,
           isFixed: isFixed,
         });
-      });
+      } else {
+        // 일반 selector는 전부 다 추가 (예: .navbar)
+        elements.forEach((el) => {
+          const isFixed = window.getComputedStyle(el).position === "fixed";
+          const rect = el.getBoundingClientRect();
+          this.targetBoundaryYs.push({
+            position: isFixed ? rect.bottom : rect.bottom + scrollY,
+            left: rect.left,
+            right: rect.right,
+            isFixed: isFixed,
+          });
+        });
+      }
     });
 
     this.targetButtonRects = [];
@@ -146,21 +179,40 @@ export class HalftoneBackground {
     window.addEventListener("touchend", () => updateMouse(-1000, -1000));
     window.addEventListener("mouseleave", () => updateMouse(-1000, -1000));
 
+    let scrollTimeout;
     window.addEventListener(
       "scroll",
       () => {
+        this.isScrolling = true;
         this.scanTargets();
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          this.isScrolling = false;
+        }, 150);
       },
       { passive: true },
     );
   }
 
   animate() {
+    const scrollY = window.scrollY;
+
     for (let i = 0; i < this.currentBoundaryYs.length; i++) {
+      let targetPos = this.targetBoundaryYs[i].position;
+
+      // 스크롤이 멈췄을 때 완벽히 한 줄(100%)에 안착하도록 격자(Grid) 위치에 자석처럼 스냅
+      if (!this.isScrolling) {
+        if (this.targetBoundaryYs[i].isFixed) {
+          const absPos = targetPos + scrollY;
+          const snappedAbs = Math.round(absPos / this.gap) * this.gap;
+          targetPos = snappedAbs - scrollY;
+        } else {
+          targetPos = Math.round(targetPos / this.gap) * this.gap;
+        }
+      }
+
       this.currentBoundaryYs[i].position +=
-        (this.targetBoundaryYs[i].position -
-          this.currentBoundaryYs[i].position) *
-        0.15;
+        (targetPos - this.currentBoundaryYs[i].position) * 0.15;
       this.currentBoundaryYs[i].left +=
         (this.targetBoundaryYs[i].left - this.currentBoundaryYs[i].left) * 0.15;
       this.currentBoundaryYs[i].right +=
@@ -184,7 +236,6 @@ export class HalftoneBackground {
 
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     const time = performance.now() * 0.002;
-    const scrollY = window.scrollY;
     const yOffset = ((-scrollY % this.gap) + this.gap) % this.gap;
 
     for (let x = this.gap / 2; x < window.innerWidth; x += this.gap) {
@@ -253,8 +304,8 @@ export class HalftoneBackground {
 
           if (dist < this.gap && x >= b.left && x <= b.right) {
             const normalizedDist = dist / this.gap;
-            // 거리가 멀어질 때 선형으로 어두워지지 않고(0.5), 제곱 곡선을 써서 중간 지점에서도 75%(0.75)의 밝기를 유지하게 함
-            const intensity = 1 - (normalizedDist * normalizedDist);
+            // 코사인 파형을 적용하여 두 줄이 굵게 나오는 현상을 줄이고 샤프하게 만듦
+            const intensity = Math.pow(Math.cos(normalizedDist * Math.PI / 2), 2.5);
             maxBoundaryIntensity = Math.max(maxBoundaryIntensity, intensity);
           }
         }
