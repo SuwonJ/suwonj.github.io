@@ -47,27 +47,86 @@ async function renderPost(id, container) {
     if (!response.ok) throw new Error("문서를 찾을 수 없습니다.");
 
     const markdownText = await response.text();
-    const tagHtml = `
+    
+    let postMeta = {};
+    const res = await fetch("../content/blog/list.json");
+    if (res.ok) {
+      const listData = await res.json();
+      postMeta = listData.find(p => p.id === id) || {};
+    }
+
+    const tags = postMeta.tags || [];
+    const tagHtml = tags.length > 0 ? `
         <div class="tag-list">
-            <span class="tag">Tech</span> / 
-            <span class="tag">Math</span>
+            ${tags.map(t => `<a href="/blog/?tags=${t}" class="tag" style="text-decoration:none;">${t}</a>`).join(" / ")}
         </div>
-    `;
+    ` : "";
     const tagContainer = document.getElementById("tag-container");
     if (tagContainer) tagContainer.innerHTML = tagHtml;
+    
     let text = markdownText;
 
     // 옵시디언 전용 문법 처리 (Pre-processing)
-    // 1. 형광펜 문법 (==내용==) -> <mark> 태그로 변환
     text = text.replace(/==([^=]+)==/g, "<mark>$1</mark>");
-    
-    // 2. 수식 블록 줄바꿈 강제 (marked-katex-extension 호환용)
-    // 리스트 내부에 있을 경우 단일 줄바꿈(\n)만으로는 단락이 끊기지 않아 블록으로 인식하지 못합니다.
-    // 따라서 $$ 앞뒤로 반드시 두 번의 줄바꿈(\n\n)을 보장하여 독립된 블록으로 만듭니다.
     text = text.replace(/([^\n])\s*\$\$/g, "$1\n\n$$$$");
     text = text.replace(/\$\$\s*([^\n])/g, "$$$$\n\n$1");
     
     container.innerHTML = marked.parse(text);
+
+    // Breadcrumb TOC 로직
+    const titleEl = document.getElementById("page-title");
+    if (titleEl && postMeta.title) titleEl.innerText = postMeta.title;
+
+    const headings = container.querySelectorAll("h1, h2, h3");
+    headings.forEach((h, i) => {
+      if (!h.id) h.id = "heading-" + i;
+    });
+
+    const breadcrumb = document.getElementById("nav-breadcrumb");
+    if (breadcrumb) {
+      breadcrumb.innerHTML = `
+        <a href="/blog/">블로그</a> <span style="margin:0 0.3rem">/</span> 
+        <a href="#" id="bc-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${postMeta.title || "문서"}</a> 
+        <span id="bc-separator" style="display:none;margin:0 0.3rem">/</span> 
+        <a href="#" id="bc-toc" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;"></a>
+      `;
+
+      const bcTitle = document.getElementById("bc-title");
+      bcTitle.addEventListener("click", (e) => {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+
+      const bcToc = document.getElementById("bc-toc");
+      const bcSeparator = document.getElementById("bc-separator");
+
+      if (headings.length > 0 && bcToc) {
+        let activeHeading = headings[0];
+        const updateToc = () => {
+          bcToc.innerText = activeHeading.innerText;
+          bcToc.href = "#" + activeHeading.id;
+          bcToc.style.display = "inline";
+          bcSeparator.style.display = "inline";
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+          let visibleEntries = entries.filter(e => e.isIntersecting);
+          if (visibleEntries.length > 0) {
+            visibleEntries.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+            activeHeading = visibleEntries[0].target;
+            updateToc();
+          }
+        }, { rootMargin: "-80px 0px -80% 0px", threshold: 0 });
+
+        headings.forEach(h => observer.observe(h));
+        
+        bcToc.addEventListener("click", (e) => {
+          e.preventDefault();
+          const targetY = activeHeading.getBoundingClientRect().top + window.scrollY - 100;
+          window.scrollTo({ top: targetY, behavior: "smooth" });
+        });
+      }
+    }
   } catch (error) {
     container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
   }
@@ -75,25 +134,71 @@ async function renderPost(id, container) {
 
 async function renderPostList(container) {
   try {
+    const breadcrumb = document.getElementById("nav-breadcrumb");
+    if (breadcrumb) breadcrumb.innerHTML = ""; // 목록에서는 경로 숨김
+
     const response = await fetch("../content/blog/list.json");
     if (!response.ok) throw new Error("목록을 불러올 수 없습니다.");
 
     const listData = await response.json();
 
+    const allTags = new Set();
+    listData.forEach(p => {
+      if (p.tags) p.tags.forEach(t => allTags.add(t));
+    });
+    const tagsArray = Array.from(allTags);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTags = urlParams.get("tags") ? urlParams.get("tags").split(",") : [];
+
     const tagHtml = `
         <div class="tag-list">
-            <span class="tag active">All</span> / 
-            <span class="tag">Tech</span> / 
-            <span class="tag">Math</span> / 
-            <span class="tag">Life</span>
+            <span class="tag ${activeTags.length === 0 ? "active" : ""}" data-tag="">All</span> / 
+            ${tagsArray.map(tag => `
+              <span class="tag ${activeTags.includes(tag) ? "active" : ""}" data-tag="${tag}">${tag}</span>
+            `).join(" / ")}
         </div>
     `;
     const tagContainer = document.getElementById("tag-container");
-    if (tagContainer) tagContainer.innerHTML = tagHtml;
+    if (tagContainer) {
+      tagContainer.innerHTML = tagHtml;
+      
+      tagContainer.querySelectorAll(".tag").forEach(el => {
+        el.addEventListener("click", (e) => {
+          const clickedTag = e.target.getAttribute("data-tag");
+          let newTags = [...activeTags];
+          if (!clickedTag) {
+            newTags = [];
+          } else {
+            if (newTags.includes(clickedTag)) {
+              newTags = newTags.filter(t => t !== clickedTag);
+            } else {
+              newTags.push(clickedTag);
+            }
+          }
+          
+          const newUrl = new URL(window.location);
+          if (newTags.length > 0) {
+            newUrl.searchParams.set("tags", newTags.join(","));
+          } else {
+            newUrl.searchParams.delete("tags");
+          }
+          window.history.pushState({}, "", newUrl);
+          renderPostList(container);
+        });
+      });
+    }
+
+    const filteredList = listData.filter(post => {
+      if (activeTags.length === 0) return true;
+      if (!post.tags) return false;
+      // OR 검색
+      return activeTags.some(t => post.tags.includes(t));
+    });
 
     container.innerHTML = `
         <ul class="blog-list">
-            ${listData
+            ${filteredList
               .map(
                 (post) => `
                 <li>

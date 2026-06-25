@@ -87,6 +87,37 @@ main {
     pointer-events: none;
 }
 
+.nav-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #888;
+    font-size: 0.95rem;
+    flex: 1;
+    min-width: 0;
+    margin-left: 1.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-breadcrumb span,
+.nav-breadcrumb a {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-breadcrumb a {
+    color: #888;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.nav-breadcrumb a:hover {
+    color: #fff;
+}
+
 .nav-links {
     display: flex;
     gap: 1.5rem;
@@ -152,7 +183,9 @@ h1 {
     margin-bottom: 1rem;
 }
 
-#content h2, #content h3, #content h4 {
+#content h2,
+#content h3,
+#content h4 {
     margin-top: 2rem;
     margin-bottom: 1rem;
 }
@@ -175,6 +208,12 @@ h1 {
     #halftone-canvas {
         height: 100dvh !important;
     }
+
+    .nav-breadcrumb {
+        margin-left: 0.5rem;
+        font-size: 0.85rem;
+        gap: 0.3rem;
+    }
 }
 
 body {
@@ -185,6 +224,7 @@ mark {
     background-color: #cceeff;
     color: #000;
     border-radius: 0.25rem;
+    padding: 0.15rem;
 }
 
 .katex-display {

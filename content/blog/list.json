@@ -1,8 +1,9 @@
 [
-  { "id": "test", "title": "테스트 일", "date": "2026-06-22" },
+  { "id": "test", "title": "테스트 일", "date": "2026-06-22", "tags": ["Tech", "Math"] },
   {
     "id": "test2",
     "title": "테스트 이",
-    "date": "2023-07-20"
+    "date": "2023-07-20",
+    "tags": ["Life", "Tech"]
   }
 ]

@@ -4,6 +4,7 @@ export function renderNavbar() {
           <a href="/" class="nav-logo">
             <img src="/assets/suwonjicon.svg" alt="SuwonJ" class="suwonj-nav-icon"/>
           </a>
+          <div id="nav-breadcrumb" class="nav-breadcrumb"></div>
           <div class="nav-links">
               <a href="/profile/">소개</a>
               <a href="/blog/">블로그</a>
