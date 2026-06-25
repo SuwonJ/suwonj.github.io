@@ -156,6 +156,12 @@ body {
     overflow-x: hidden;
 }
 
+mark {
+    background-color: #cceeff;
+    color: #000;
+    border-radius: 0.25rem;
+}
+
 .katex-display {
     overflow-x: auto;
     overflow-y: hidden;
@@ -180,6 +186,7 @@ body {
     transition: color 0.3s ease;
 }
 
-.tag:hover, .tag.active {
+.tag:hover,
+.tag.active {
     color: #ffffff;
 }
