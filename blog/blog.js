@@ -5,6 +5,14 @@ async function init() {
   if (typeof window.markedKatex === "function") {
     marked.use(window.markedKatex({ throwOnError: false, nonStandard: true }));
   }
+  if (typeof hljs !== 'undefined') {
+    marked.setOptions({
+      highlight: function(code, lang) {
+        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+        return hljs.highlight(code, { language }).value;
+      }
+    });
+  }
 
   renderNavbar();
   const blogBg = new HalftoneBackground("halftone-canvas", {
@@ -112,6 +120,49 @@ async function renderPost(id, container) {
 
       if (headings.length > 0 && bcToc) {
         let activeHeading = headings[0];
+        
+        const floatingTocContainer = document.getElementById("floating-toc");
+        if (floatingTocContainer) {
+            floatingTocContainer.innerHTML = '';
+            const rootUl = document.createElement("ul");
+            const stack = [{ level: 0, element: rootUl }];
+            
+            headings.forEach(heading => {
+                const level = parseInt(heading.tagName.substring(1));
+                
+                while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+                    stack.pop();
+                }
+                
+                const parent = stack[stack.length - 1];
+                const li = document.createElement("li");
+                const a = document.createElement("a");
+                a.href = "#" + heading.id;
+                a.innerText = heading.innerText;
+                a.setAttribute("data-toc-id", heading.id);
+                li.appendChild(a);
+                
+                if (level > parent.level) {
+                    if (parent.level === 0) {
+                        parent.element.appendChild(li);
+                        stack.push({ level, element: parent.element });
+                    } else {
+                        const newUl = document.createElement("ul");
+                        newUl.appendChild(li);
+                        if (parent.element.lastElementChild) {
+                            parent.element.lastElementChild.appendChild(newUl);
+                        } else {
+                            parent.element.appendChild(newUl);
+                        }
+                        stack.push({ level, element: newUl });
+                    }
+                } else {
+                    parent.element.appendChild(li);
+                }
+            });
+            floatingTocContainer.appendChild(rootUl);
+        }
+
         const updateToc = () => {
           const tocText = activeHeading.innerText;
           const dt = bcToc.querySelector('.desktop-text');
@@ -121,6 +172,12 @@ async function renderPost(id, container) {
           bcToc.href = "#" + activeHeading.id;
           bcToc.style.display = "inline";
           bcSeparator.style.display = "inline";
+
+          if (floatingTocContainer) {
+              floatingTocContainer.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+              const activeA = floatingTocContainer.querySelector(`a[data-toc-id="${activeHeading.id}"]`);
+              if (activeA) activeA.classList.add('active');
+          }
         };
 
         const observer = new IntersectionObserver((entries) => {
@@ -141,6 +198,29 @@ async function renderPost(id, container) {
         });
       }
     }
+
+    // Image Lightbox
+    let lightbox = document.getElementById("lightbox");
+    if (!lightbox) {
+        lightbox = document.createElement("div");
+        lightbox.id = "lightbox";
+        const img = document.createElement("img");
+        lightbox.appendChild(img);
+        document.body.appendChild(lightbox);
+        
+        lightbox.addEventListener("click", () => {
+            lightbox.classList.remove("active");
+        });
+    }
+    
+    container.querySelectorAll("img").forEach(img => {
+        img.addEventListener("click", (e) => {
+            const lightboxImg = lightbox.querySelector("img");
+            lightboxImg.src = img.src;
+            lightbox.classList.add("active");
+        });
+    });
+
   } catch (error) {
     container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
   }

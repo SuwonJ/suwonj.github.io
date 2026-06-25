@@ -152,10 +152,32 @@ h1 {
     max-width: 100%;
     overflow-x: auto;
     white-space: pre;
+    border: 1px dotted #555;
+    border-radius: 8px;
+    padding: 1.5rem;
+    background: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 15px 15px, #1a1a1a;
+    margin-bottom: 1.5rem;
 }
 
 #content code {
     word-break: break-all;
+    font-family: "Google Sans Code", monospace;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
+    font-variation-settings: "MONO" 1;
+    background: #2a2a2a;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+#content pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.95em;
+    line-height: 1.5;
 }
 
 #content ul,
@@ -257,4 +279,124 @@ mark {
 .tag:hover,
 .tag.active {
     color: #ffffff;
+}
+
+/* --- Image Lightbox --- */
+#content img {
+    cursor: zoom-in;
+    border-radius: 8px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+#content img:hover {
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+#lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+#lightbox.active {
+    opacity: 1;
+    pointer-events: auto;
+    cursor: zoom-out;
+}
+#lightbox img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+#lightbox.active img {
+    transform: scale(1);
+}
+
+/* --- Floating TOC (Tree Style) --- */
+#floating-toc {
+    display: none;
+}
+@media (min-width: 1200px) {
+    main {
+        margin-left: max(5%, calc((100vw - 1100px) / 2)) !important;
+        margin-right: auto;
+    }
+    #floating-toc {
+        display: block;
+        position: fixed;
+        top: 150px;
+        right: max(2%, calc((100vw - 1100px) / 2 - 250px));
+        width: 250px;
+        max-height: calc(100vh - 180px);
+        overflow-y: auto;
+        padding-left: 1rem;
+        border-left: 1px solid #333;
+        font-size: 0.85rem;
+    }
+    /* 스크롤바 숨기기 */
+    #floating-toc::-webkit-scrollbar {
+        width: 4px;
+    }
+    #floating-toc::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 4px;
+    }
+    #floating-toc ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+    #floating-toc li {
+        margin-bottom: 0.6rem;
+    }
+    #floating-toc ul ul {
+        padding-left: 1rem;
+        margin-top: 0.6rem;
+        border-left: 1px solid #333;
+    }
+    #floating-toc a {
+        color: #666;
+        text-decoration: none;
+        display: block;
+        padding-left: 0.5rem;
+        transition: all 0.2s ease;
+        line-height: 1.4;
+    }
+    #floating-toc a:hover {
+        color: #aaa;
+    }
+    #floating-toc a.active {
+        color: #fff;
+        font-weight: 500;
+        position: relative;
+    }
+    #floating-toc a.active::before {
+        content: "";
+        position: absolute;
+        left: -1px; /* 부모 border-left와 위치 맞춤 */
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: #fff;
+        border-radius: 2px;
+    }
+    /* 중첩된 리스트의 active bar 위치 보정 */
+    #floating-toc ul ul a.active::before {
+        left: -17px;
+    }
+    #floating-toc ul ul ul a.active::before {
+        left: -17px;
+    }
 }
