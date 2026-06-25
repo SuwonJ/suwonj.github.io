@@ -3,7 +3,7 @@ import { HalftoneBackground } from "../components/halftone.js";
 
 async function init() {
   if (typeof window.markedKatex === "function") {
-    marked.use(window.markedKatex({ throwOnError: false }));
+    marked.use(window.markedKatex({ throwOnError: false, nonStandard: true }));
   }
 
   renderNavbar();
@@ -55,8 +55,18 @@ async function renderPost(id, container) {
     `;
     const tagContainer = document.getElementById("tag-container");
     if (tagContainer) tagContainer.innerHTML = tagHtml;
+    let text = markdownText;
+
+    // 옵시디언 전용 문법 처리 (Pre-processing)
+    // 1. 형광펜 문법 (==내용==) -> <mark> 태그로 변환
+    text = text.replace(/==([^=]+)==/g, "<mark>$1</mark>");
     
-    container.innerHTML = marked.parse(markdownText);
+    // 2. 수식 블록 줄바꿈 강제 (marked-katex-extension 호환용)
+    // 텍스트와 $$가 같은 줄에 있으면 확장 기능이 인식하지 못하므로, $$ 앞뒤로 줄바꿈을 삽입합니다.
+    text = text.replace(/([^\n])\s*\$\$/g, "$1\n$$$$"); // $$ 앞에 글자가 있으면 줄바꿈 추가
+    text = text.replace(/\$\$\s*([^\n])/g, "$$$$\n$1"); // $$ 뒤에 글자가 있으면 줄바꿈 추가
+    
+    container.innerHTML = marked.parse(text);
   } catch (error) {
     container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
   }
