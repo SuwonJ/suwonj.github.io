@@ -137,11 +137,10 @@ export class HalftoneBackground {
 
     const offCanvas = document.createElement("canvas");
     const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
-    this.iconRect.w = Math.floor(Math.min(window.innerWidth * this.iconScale, 900));
-    this.iconRect.h = Math.floor(
-      (imgHeight / imgWidth) *
-        this.iconRect.w,
+    this.iconRect.w = Math.floor(
+      Math.min(window.innerWidth * this.iconScale, 900),
     );
+    this.iconRect.h = Math.floor((imgHeight / imgWidth) * this.iconRect.w);
     const margin = 40;
     this.iconRect.x = Math.floor(window.innerWidth - this.iconRect.w - margin);
     this.iconRect.y = Math.floor(window.innerHeight - this.iconRect.h - margin);
@@ -177,15 +176,27 @@ export class HalftoneBackground {
       this.mouse.y = y;
     };
 
-    window.addEventListener("mousemove", (e) => updateMouse(e.clientX, e.clientY));
+    window.addEventListener("mousemove", (e) =>
+      updateMouse(e.clientX, e.clientY),
+    );
 
-    window.addEventListener("touchstart", (e) => {
-      if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
+    window.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length > 0)
+          updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+      },
+      { passive: true },
+    );
 
-    window.addEventListener("touchmove", (e) => {
-      if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
+    window.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.touches.length > 0)
+          updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+      },
+      { passive: true },
+    );
 
     window.addEventListener("touchend", () => updateMouse(-1000, -1000));
     window.addEventListener("mouseleave", () => updateMouse(-1000, -1000));
@@ -249,8 +260,12 @@ export class HalftoneBackground {
           tBottom = Math.round(tBottom / this.gap) * this.gap;
         }
         // X 좌표의 경우 점들이 gap/2 부터 시작하므로 해당 오프셋에 맞게 스냅
-        tLeft = Math.round((tLeft - this.gap / 2) / this.gap) * this.gap + this.gap / 2;
-        tRight = Math.round((tRight - this.gap / 2) / this.gap) * this.gap + this.gap / 2;
+        tLeft =
+          Math.round((tLeft - this.gap / 2) / this.gap) * this.gap +
+          this.gap / 2;
+        tRight =
+          Math.round((tRight - this.gap / 2) / this.gap) * this.gap +
+          this.gap / 2;
       }
 
       this.currentButtonRects[i].top +=
@@ -261,13 +276,33 @@ export class HalftoneBackground {
         (tLeft - this.currentButtonRects[i].left) * 0.15;
       this.currentButtonRects[i].right +=
         (tRight - this.currentButtonRects[i].right) * 0.15;
-      
+
       if (this.currentButtonRects[i].pulseValue > 0) {
         this.currentButtonRects[i].pulseValue *= 0.9;
       }
     }
 
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+    // 코드블럭 배경 그리기 (스냅된 좌표에 맞게)
+    this.ctx.fillStyle = "#00000040";
+    for (let rect of this.currentButtonRects) {
+      const screenTop = rect.isFixed ? rect.top : rect.top - scrollY;
+      const screenBottom = rect.isFixed ? rect.bottom : rect.bottom - scrollY;
+      const width = rect.right - rect.left;
+      const height = screenBottom - screenTop;
+
+      if (width > 0 && height > 0) {
+        this.ctx.beginPath();
+        if (this.ctx.roundRect) {
+          this.ctx.roundRect(rect.left, screenTop, width, height, 4);
+        } else {
+          this.ctx.rect(rect.left, screenTop, width, height);
+        }
+        this.ctx.fill();
+      }
+    }
+
     const time = performance.now() * 0.002;
     const yOffset = ((-scrollY % this.gap) + this.gap) % this.gap;
 
@@ -338,7 +373,10 @@ export class HalftoneBackground {
           if (dist < this.gap && x >= b.left && x <= b.right) {
             const normalizedDist = dist / this.gap;
             // 코사인 파형을 적용하여 두 줄이 굵게 나오는 현상을 줄이고 샤프하게 만듦
-            const intensity = Math.pow(Math.cos(normalizedDist * Math.PI / 2), 2.5);
+            const intensity = Math.pow(
+              Math.cos((normalizedDist * Math.PI) / 2),
+              2.5,
+            );
             maxBoundaryIntensity = Math.max(maxBoundaryIntensity, intensity);
           }
         }
@@ -361,24 +399,30 @@ export class HalftoneBackground {
 
           let edgeDist = Infinity;
           if (xInBounds) {
-             edgeDist = Math.min(edgeDist, distTop, distBottom);
+            edgeDist = Math.min(edgeDist, distTop, distBottom);
           }
           if (yInBounds) {
-             edgeDist = Math.min(edgeDist, distLeft, distRight);
+            edgeDist = Math.min(edgeDist, distLeft, distRight);
           }
 
           if (edgeDist < this.gap) {
-             const normalizedDist = edgeDist / this.gap;
-             // 밝기를 높이기 위해 지수를 2.5에서 1.8로 낮춰 약간 더 두껍고 밝게 만듦
-             const intensity = Math.pow(Math.cos(normalizedDist * Math.PI / 2), 1.8);
-             if (intensity > maxButtonEdgeIntensity) {
-                 maxButtonEdgeIntensity = intensity;
-                 activeEdgePulse = rect.pulseValue || 0;
-             }
+            const normalizedDist = edgeDist / this.gap;
+            // 밝기를 높이기 위해 지수를 2.5에서 1.8로 낮춰 약간 더 두껍고 밝게 만듦
+            const intensity = Math.pow(
+              Math.cos((normalizedDist * Math.PI) / 2),
+              1.8,
+            );
+            if (intensity > maxButtonEdgeIntensity) {
+              maxButtonEdgeIntensity = intensity;
+              activeEdgePulse = rect.pulseValue || 0;
+            }
           }
         }
 
-        const finalBoundaryIntensity = Math.max(maxBoundaryIntensity, maxButtonEdgeIntensity);
+        const finalBoundaryIntensity = Math.max(
+          maxBoundaryIntensity,
+          maxButtonEdgeIntensity,
+        );
 
         if (finalBoundaryIntensity > 0) {
           const intensity = finalBoundaryIntensity;
