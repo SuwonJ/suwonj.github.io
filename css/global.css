@@ -45,7 +45,7 @@
     --tree-color: #ddd;
     --tree-summary: #fff;
     --tree-line: #777;
-    
+
     /* Profile specific */
     --section-label-color: #555555;
     --hero-title-color: #ffffff;
@@ -102,7 +102,7 @@
     --tree-color: #222222;
     --tree-summary: #000000;
     --tree-line: #bbbbbb;
-    
+
     /* Profile specific */
     --section-label-color: #888888;
     --hero-title-color: #1a1a1a;
@@ -131,7 +131,9 @@ body {
     color: var(--text-color);
     font-family: "Ridibatang", sans-serif;
     font-size: 17px;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition:
+        background-color 1.5s ease,
+        color 1.5s ease;
 }
 
 .navbar {
@@ -189,7 +191,9 @@ main {
 
     filter: var(--logo-filter);
     opacity: 0.9;
-    transition: opacity 0.3s ease, filter 0.3s ease;
+    transition:
+        opacity 0.3s ease,
+        filter 0.3s ease;
 }
 
 #halftone-canvas {
@@ -618,7 +622,9 @@ mark {
 }
 
 #content th {
-    background-color: var(--table-header-bg); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
+    background-color: var(
+        --table-header-bg
+    ); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
     color: var(--table-header-text);
     font-weight: 600;
     border-bottom: 2px solid var(--table-header-border);

@@ -24,6 +24,9 @@ export class HalftoneBackground {
     this.iconData = null;
     this.iconImg = new Image();
     this.isScrolling = false;
+    this.iconWeight = options.iconSrc ? 1.0 : 0.0;
+    this.targetIconWeight = options.iconSrc ? 1.0 : 0.0;
+    this.pendingIconSrc = null;
   }
 
   init() {
@@ -114,18 +117,39 @@ export class HalftoneBackground {
 
   // 런타임에 아이콘 교체 (연락처 호버 등)
   setIcon(src) {
+    if (src === this.iconSrc) {
+      this.targetIconWeight = 1.0;
+      this.pendingIconSrc = null;
+      return;
+    }
+
+    // 만약 이미 이미지가 표시 중이고 다른 로고로 교체하거나 끄는 경우
+    if (this.iconData && this.iconWeight > 0.05) {
+      this.pendingIconSrc = src;
+      this.targetIconWeight = 0.0; // 먼저 페이드아웃 시작
+      return;
+    }
+
+    // 이미지가 없거나 이미 페이드아웃 완료 상태라면 즉시 교체 시작
+    this.executeIconChange(src);
+  }
+
+  executeIconChange(src) {
+    this.pendingIconSrc = null;
     if (!src) {
       this.iconData = null;
       this.iconSrc = null;
+      this.targetIconWeight = 0.0;
       return;
     }
-    if (src === this.iconSrc) return;
+
     this.iconSrc = src;
     const img = new Image();
     img.onload = () => {
       if (this.iconSrc !== src) return; // 로딩 중 src가 바뀐 경우 무시
       this.iconImg = img;
       this.cacheIconData();
+      this.targetIconWeight = 1.0; // 페이드인 시작
     };
     img.src = src;
   }
@@ -218,6 +242,24 @@ export class HalftoneBackground {
 
   animate() {
     const scrollY = window.scrollY;
+
+    // iconWeight 보간 계산 (페이드 인/아웃용)
+    if (this.iconWeight !== this.targetIconWeight) {
+      this.iconWeight += (this.targetIconWeight - this.iconWeight) * 0.15;
+      
+      // 페이드아웃이 완전히 완료되었을 때
+      if (this.targetIconWeight === 0.0 && this.iconWeight < 0.02) {
+        this.iconWeight = 0.0;
+        
+        // 대기 중인(pending) 다른 아이콘이 있으면 교체 실행
+        if (this.pendingIconSrc !== null) {
+          this.executeIconChange(this.pendingIconSrc);
+        } else {
+          this.iconData = null;
+          this.iconSrc = null;
+        }
+      }
+    }
 
     for (let i = 0; i < this.currentBoundaryYs.length; i++) {
       let targetPos = this.targetBoundaryYs[i].position;
@@ -319,7 +361,7 @@ export class HalftoneBackground {
         const organicWave = (wave1 + wave2 + wave3) / 3;
 
         let radius = 1 + Math.abs(organicWave) * 1.4;
-        let opacity = 0.05 + Math.abs(organicWave) * 0.2;
+        let opacity = 0.08 + Math.abs(organicWave) * 0.25;
 
         let hoverRatio = 0;
         if (mouseDist < this.effectRadius) {
@@ -348,20 +390,21 @@ export class HalftoneBackground {
             const intensity = luminance * (alpha / 255);
 
             const baseRadius =
-              0.2 + 1 * intensity + Math.abs(organicWave) * 0.8;
+              0.2 + 1.4 * intensity + Math.abs(organicWave) * 0.8;
             const baseOpacity =
-              0.05 + 0.3 * intensity + Math.abs(organicWave) * 0.45;
+              0.08 + 0.5 * intensity + Math.abs(organicWave) * 0.45;
 
-            let imgRadiusBonus = baseRadius;
-            let imgOpacityBonus = baseOpacity;
+            let imgRadius = baseRadius;
+            let imgOpacity = baseOpacity;
 
             if (hoverRatio > 0) {
-              imgRadiusBonus += 1.5 * intensity * hoverRatio;
-              imgOpacityBonus += 0.2 * intensity * hoverRatio;
+              imgRadius += 1.5 * intensity * hoverRatio;
+              imgOpacity += 0.3 * intensity * hoverRatio;
             }
 
-            radius = Math.max(radius, imgRadiusBonus);
-            opacity = Math.max(opacity, imgOpacityBonus);
+            // 가중치(iconWeight)를 사용해 배경 기본값과 로고 스타일을 자연스럽게 섞는다.
+            radius = radius * (1 - this.iconWeight) + Math.max(radius, imgRadius) * this.iconWeight;
+            opacity = opacity * (1 - this.iconWeight) + Math.max(opacity, imgOpacity) * this.iconWeight;
           }
         }
 
