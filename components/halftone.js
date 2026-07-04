@@ -284,7 +284,7 @@ export class HalftoneBackground {
 
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    // 코드블럭 배경 그리기 (스냅된 좌표에 맞게)
+    // 코드블럭 배경
     this.ctx.fillStyle = "#00000040";
     for (let rect of this.currentButtonRects) {
       const screenTop = rect.isFixed ? rect.top : rect.top - scrollY;
@@ -350,7 +350,7 @@ export class HalftoneBackground {
             const baseRadius =
               0.2 + 1 * intensity + Math.abs(organicWave) * 0.8;
             const baseOpacity =
-              0.05 + 0.3 * intensity + Math.abs(organicWave) * 0.05;
+              0.05 + 0.3 * intensity + Math.abs(organicWave) * 0.45;
 
             let imgRadiusBonus = baseRadius;
             let imgOpacityBonus = baseOpacity;
@@ -446,8 +446,10 @@ export class HalftoneBackground {
           radius = Math.max(radius, boundaryRadius);
           opacity = Math.max(opacity, boundaryOpacity);
         }
-        const isLight = document.documentElement.classList.contains('light-mode') || document.body.classList.contains('light-mode');
-        const dotColor = isLight ? '0, 0, 0' : '255, 255, 255';
+        const isLight =
+          document.documentElement.classList.contains("light-mode") ||
+          document.body.classList.contains("light-mode");
+        const dotColor = isLight ? "0, 0, 0" : "255, 255, 255";
 
         this.ctx.beginPath();
         this.ctx.arc(x, y, radius, 0, Math.PI * 2);
