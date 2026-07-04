@@ -1,4 +1,13 @@
 export function renderNavbar() {
+  if (!document.getElementById("material-symbols-link")) {
+    const iconLink = document.createElement("link");
+    iconLink.id = "material-symbols-link";
+    iconLink.rel = "stylesheet";
+    iconLink.href =
+      "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=dark_mode,light_mode";
+    document.head.appendChild(iconLink);
+  }
+
   const navbarHTML = `
         <nav class="navbar">
           <a href="/" class="nav-logo">
@@ -10,8 +19,8 @@ export function renderNavbar() {
               <a href="/blog/">블로그</a>
               <a href="/research/">연구/실험</a>
               <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme">
-                <span class="theme-text-dark" style="display:none;">DARK</span>
-                <span class="theme-text-light" style="display:inline;">LIGHT</span>
+                <span class="material-symbols-outlined theme-icon-dark" style="display:none;">dark_mode</span>
+                <span class="material-symbols-outlined theme-icon-light" style="display:none;">light_mode</span>
               </button>
           </div>
         </nav>
@@ -20,20 +29,20 @@ export function renderNavbar() {
   document.body.insertAdjacentHTML("afterbegin", navbarHTML);
 
   const toggleBtn = document.getElementById("theme-toggle");
-  const darkText = toggleBtn.querySelector(".theme-text-dark");
-  const lightText = toggleBtn.querySelector(".theme-text-light");
+  const darkIcon = toggleBtn.querySelector(".theme-icon-dark");
+  const lightIcon = toggleBtn.querySelector(".theme-icon-light");
 
   function applyTheme(theme) {
     if (theme === "light") {
       document.body.classList.add("light-mode");
       document.documentElement.classList.add("light-mode");
-      darkText.style.display = "inline";
-      lightText.style.display = "none";
+      darkIcon.style.display = "none";
+      lightIcon.style.display = "inline-block";
     } else {
       document.body.classList.remove("light-mode");
       document.documentElement.classList.remove("light-mode");
-      darkText.style.display = "none";
-      lightText.style.display = "inline";
+      darkIcon.style.display = "inline-block";
+      lightIcon.style.display = "none";
     }
   }
 

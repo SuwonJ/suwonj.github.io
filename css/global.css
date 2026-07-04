@@ -261,6 +261,12 @@ main {
     color: var(--nav-hover);
 }
 
+.theme-toggle-btn .material-symbols-outlined {
+    font-size: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
 hr {
     margin: 2rem 0;
     opacity: 0;
