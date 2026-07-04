@@ -4,13 +4,43 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>연구 기록</title>
+        <link
+            rel="icon"
+            href="/assets/suwonjicon.svg"
+            type="image/x-icon"
+            media="(prefers-color-scheme: dark)"
+        />
+        <link
+            rel="icon"
+            href="/assets/suwonjiconwhite.svg"
+            type="image/x-icon"
+            media="(prefers-color-scheme: light)"
+        />
         <link rel="stylesheet" href="../css/global.css" />
+        <script>
+            (function() {
+                const savedTheme = localStorage.getItem("theme") || "dark";
+                if (savedTheme === "light") {
+                    document.documentElement.classList.add("light-mode");
+                }
+            })();
+        </script>
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css"
         />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-        <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap" rel="stylesheet" onerror="this.onerror=null;this.href='';">
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap"
+            rel="stylesheet"
+            onerror="
+                this.onerror = null;
+                this.href = '';
+            "
+        />
 
         <style>
             #halftone-canvas {
@@ -25,11 +55,11 @@
 
             /* 마크다운 본문 영역 */
             #content a {
-                color: #888;
+                color: var(--nav-text);
                 text-decoration: none;
             }
             #content a:hover {
-                color: #fff;
+                color: var(--nav-hover);
             }
         </style>
     </head>
@@ -45,7 +75,9 @@
                 margin: 0 auto;
             "
         >
-            <h1 id="page-title" style="font-size: 2rem; margin-bottom: 1rem">연구 기록</h1>
+            <h1 id="page-title" style="font-size: 2rem; margin-bottom: 1rem">
+                연구 기록
+            </h1>
             <div id="tag-container"></div>
             <hr
                 style="
@@ -70,7 +102,8 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
         <script>
             // pdf.js worker 설정을 여기에 지정해줍니다.
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
         </script>
 
         <script type="module" src="./research.js"></script>

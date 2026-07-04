@@ -6,6 +6,14 @@
         <title>SuwonJ — 소개</title>
         <meta name="description" content="숭실대학교 AI소프트웨어학부 재학 중인 SuwonJ의 개인 소개 페이지." />
         <link rel="stylesheet" href="../css/global.css" />
+        <script>
+            (function() {
+                const savedTheme = localStorage.getItem("theme") || "dark";
+                if (savedTheme === "light") {
+                    document.documentElement.classList.add("light-mode");
+                }
+            })();
+        </script>
 
         <style>
             #halftone-canvas {
@@ -31,7 +39,7 @@
 
             .section-label {
                 font-size: 0.75rem;
-                color: #444;
+                color: var(--section-label-color);
                 letter-spacing: 0.18em;
                 text-transform: uppercase;
                 margin-bottom: 1.5rem;
@@ -45,12 +53,12 @@
 
             .profile-hero h1 {
                 font-size: 3rem;
-                color: #fff;
+                color: var(--hero-title-color);
                 margin: 0 0 0.6rem;
             }
 
             .profile-tagline {
-                color: #555;
+                color: var(--tagline-color);
                 font-size: 1rem;
                 margin: 0;
                 font-family: monospace;
@@ -58,7 +66,7 @@
 
             /* ── About ── */
             .about-text {
-                color: #999;
+                color: var(--about-text-color);
                 line-height: 1.95;
                 margin-bottom: 1rem;
             }
@@ -76,17 +84,17 @@
             .interest-tag {
                 font-family: monospace;
                 font-size: 0.8rem;
-                color: #555;
+                color: var(--interest-text);
                 padding: 0.2rem 0.7rem;
-                border: 1px solid #2a2a2a;
+                border: 1px solid var(--interest-border);
                 border-radius: 2px;
                 transition: color 0.2s, border-color 0.2s;
                 cursor: default;
             }
 
             .interest-tag:hover {
-                color: #ccc;
-                border-color: #555;
+                color: var(--interest-text-hover);
+                border-color: var(--interest-border-hover);
             }
 
             /* ── Skills (하프톤 도트 숙련도) ── */
@@ -104,7 +112,7 @@
 
             .skill-name {
                 font-family: monospace;
-                color: #ccc;
+                color: var(--skill-name-color);
                 font-size: 0.95rem;
                 min-width: 70px;
             }
@@ -117,7 +125,7 @@
 
             .skill-dot {
                 border-radius: 50%;
-                background: #fff;
+                background: var(--skill-dot-color);
                 transition: transform 0.2s;
             }
 
@@ -134,7 +142,7 @@
                 display: flex;
                 flex-direction: column;
                 gap: 2rem;
-                border-left: 1px solid #222;
+                border-left: 1px solid var(--timeline-border);
                 padding-left: 1.8rem;
                 margin-left: 0.3rem;
             }
@@ -151,25 +159,25 @@
                 width: 5px;
                 height: 5px;
                 border-radius: 50%;
-                background: #333;
-                border: 1px solid #555;
+                background: var(--timeline-dot-bg);
+                border: 1px solid var(--timeline-dot-border);
             }
 
             .timeline-period {
                 font-family: monospace;
                 font-size: 0.78rem;
-                color: #555;
+                color: var(--timeline-period-color);
                 margin-bottom: 0.3rem;
             }
 
             .timeline-place {
-                color: #bbb;
+                color: var(--timeline-place-color);
                 font-size: 0.95rem;
                 margin-bottom: 0.2rem;
             }
 
             .timeline-desc {
-                color: #555;
+                color: var(--timeline-desc-color);
                 font-size: 0.82rem;
                 font-family: monospace;
             }
@@ -194,25 +202,25 @@
             .contact-service {
                 font-family: monospace;
                 font-size: 0.7rem;
-                color: #444;
+                color: var(--contact-service-color);
                 text-transform: uppercase;
                 letter-spacing: 0.12em;
                 transition: color 0.25s;
             }
 
             .contact-handle {
-                color: #aaa;
+                color: var(--contact-handle-color);
                 font-size: 0.9rem;
                 font-family: monospace;
                 transition: color 0.25s;
             }
 
             .contact-card:hover .contact-service {
-                color: #666;
+                color: var(--contact-service-hover);
             }
 
             .contact-card:hover .contact-handle {
-                color: #ddd;
+                color: var(--contact-handle-hover);
             }
 
             /* ── 모바일 ── */

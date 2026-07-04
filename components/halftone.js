@@ -446,9 +446,12 @@ export class HalftoneBackground {
           radius = Math.max(radius, boundaryRadius);
           opacity = Math.max(opacity, boundaryOpacity);
         }
+        const isLight = document.documentElement.classList.contains('light-mode') || document.body.classList.contains('light-mode');
+        const dotColor = isLight ? '0, 0, 0' : '255, 255, 255';
+
         this.ctx.beginPath();
         this.ctx.arc(x, y, radius, 0, Math.PI * 2);
-        this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+        this.ctx.fillStyle = `rgba(${dotColor}, ${opacity})`;
         this.ctx.fill();
       }
     }

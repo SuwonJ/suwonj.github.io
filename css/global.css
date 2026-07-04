@@ -12,11 +12,126 @@
     padding: 0;
 }
 
+:root {
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --navbar-bg: #12121200;
+    --logo-filter: invert(100%);
+    --nav-text: #a0a0a0;
+    --nav-hover: #fff;
+    --breadcrumb-color: #888;
+    --code-bg: #2a2a2a;
+    --code-text: #e0e0e0;
+    --tag-list-color: #555555;
+    --tag-color: #777777;
+    --tag-hover: #ffffff;
+    --toc-border: #333;
+    --toc-link: #666;
+    --toc-link-hover: #aaa;
+    --toc-link-active: #fff;
+    --table-border: rgba(255, 255, 255, 0.2);
+    --table-header-bg: rgba(255, 255, 255, 0.04);
+    --table-header-text: #ffffff;
+    --table-header-border: rgba(255, 255, 255, 0.35);
+    --table-row-even: rgba(255, 255, 255, 0.1);
+    --table-row-hover: rgba(255, 255, 255, 0.03);
+    --tab-border: #333;
+    --tab-text: #888;
+    --tab-hover-text: #fff;
+    --tab-hover-border: #666;
+    --tab-active-bg: #333;
+    --tab-active-border: #555;
+    --pdf-border: #333;
+    --tree-color: #ddd;
+    --tree-summary: #fff;
+    --tree-line: #777;
+    
+    /* Profile specific */
+    --section-label-color: #555555;
+    --hero-title-color: #ffffff;
+    --tagline-color: #555555;
+    --about-text-color: #999999;
+    --interest-border: #2a2a2a;
+    --interest-text: #555555;
+    --interest-text-hover: #cccccc;
+    --interest-border-hover: #555555;
+    --skill-name-color: #cccccc;
+    --skill-dot-color: #ffffff;
+    --timeline-border: #222222;
+    --timeline-dot-bg: #333333;
+    --timeline-dot-border: #555555;
+    --timeline-period-color: #555555;
+    --timeline-place-color: #bbbbbb;
+    --timeline-desc-color: #555555;
+    --contact-service-color: #444444;
+    --contact-handle-color: #aaaaaaaa;
+    --contact-service-hover: #666666;
+    --contact-handle-hover: #dddddd;
+}
+
+:root.light-mode {
+    --bg-color: #ffffff;
+    --text-color: #1a1a1a;
+    --navbar-bg: #ffffff00;
+    --logo-filter: none;
+    --nav-text: #555555;
+    --nav-hover: #000000;
+    --breadcrumb-color: #666666;
+    --code-bg: #f3f3f3;
+    --code-text: #1a1a1a;
+    --tag-list-color: #666666;
+    --tag-color: #555555;
+    --tag-hover: #000000;
+    --toc-border: #dddddd;
+    --toc-link: #888888;
+    --toc-link-hover: #333333;
+    --toc-link-active: #000000;
+    --table-border: rgba(0, 0, 0, 0.15);
+    --table-header-bg: rgba(0, 0, 0, 0.03);
+    --table-header-text: #000000;
+    --table-header-border: rgba(0, 0, 0, 0.25);
+    --table-row-even: rgba(0, 0, 0, 0.05);
+    --table-row-hover: rgba(0, 0, 0, 0.02);
+    --tab-border: #cccccc;
+    --tab-text: #666666;
+    --tab-hover-text: #000000;
+    --tab-hover-border: #999999;
+    --tab-active-bg: #e0e0e0;
+    --tab-active-border: #bbbbbb;
+    --pdf-border: #cccccc;
+    --tree-color: #222222;
+    --tree-summary: #000000;
+    --tree-line: #bbbbbb;
+    
+    /* Profile specific */
+    --section-label-color: #888888;
+    --hero-title-color: #1a1a1a;
+    --tagline-color: #888888;
+    --about-text-color: #444444;
+    --interest-border: #dddddd;
+    --interest-text: #666666;
+    --interest-text-hover: #1a1a1a;
+    --interest-border-hover: #999999;
+    --skill-name-color: #1a1a1a;
+    --skill-dot-color: #000000;
+    --timeline-border: #e0e0e0;
+    --timeline-dot-bg: #ffffff;
+    --timeline-dot-border: #bbbbbb;
+    --timeline-period-color: #888888;
+    --timeline-place-color: #1a1a1a;
+    --timeline-desc-color: #666666;
+    --contact-service-color: #777777;
+    --contact-handle-color: #333333;
+    --contact-service-hover: #444444;
+    --contact-handle-hover: #000000;
+}
+
 body {
-    background-color: #121212;
-    color: #e0e0e0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     font-family: "Ridibatang", sans-serif;
     font-size: 17px;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .navbar {
@@ -24,7 +139,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem 2rem;
-    background-color: #12121200;
+    background-color: var(--navbar-bg);
 
     position: fixed;
     top: 0;
@@ -64,7 +179,7 @@ main {
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
-    color: #ffffff;
+    color: var(--nav-hover);
 }
 
 .suwonj-nav-icon {
@@ -72,9 +187,9 @@ main {
     width: auto;
     object-fit: contain;
 
-    filter: invert(100%);
+    filter: var(--logo-filter);
     opacity: 0.9;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 #halftone-canvas {
@@ -91,7 +206,7 @@ main {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #888;
+    color: var(--breadcrumb-color);
     font-size: 0.95rem;
     flex: 1;
     min-width: 0;
@@ -99,14 +214,14 @@ main {
 }
 
 .nav-breadcrumb a {
-    color: #888;
+    color: var(--breadcrumb-color);
     text-decoration: none;
     transition: color 0.2s;
     white-space: nowrap;
 }
 
 .nav-breadcrumb a:hover {
-    color: #fff;
+    color: var(--nav-hover);
 }
 
 .mobile-text {
@@ -119,13 +234,31 @@ main {
 }
 
 .nav-links a {
-    color: #a0a0a0;
+    color: var(--nav-text);
     text-decoration: none;
     transition: color 0.2s;
 }
 
 .nav-links a:hover {
-    color: #fff;
+    color: var(--nav-hover);
+}
+
+.theme-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--nav-text);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 0;
+    margin-left: 0.5rem;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.theme-toggle-btn:hover {
+    color: var(--nav-hover);
 }
 
 hr {
@@ -137,6 +270,7 @@ h1 {
     font-size: 2.5rem;
     margin-top: 1.5rem;
     margin-bottom: 0.5rem;
+    color: var(--hero-title-color);
 }
 
 #content {
@@ -167,14 +301,14 @@ h1 {
     top: 0.8rem;
     left: 1.5rem;
     font-size: 0.75rem;
-    color: #888;
+    color: var(--breadcrumb-color);
     font-family: "Google Sans Code", monospace;
     text-transform: uppercase;
     transition: color 0.2s ease;
 }
 
 #content pre.copied[data-lang]::before {
-    color: #ffffff;
+    color: var(--nav-hover);
     font-weight: bold;
 }
 
@@ -185,7 +319,8 @@ h1 {
     font-weight: 400;
     font-style: normal;
     font-variation-settings: "MONO" 1;
-    background: #2a2a2a;
+    background: var(--code-bg);
+    color: var(--code-text);
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
     font-size: 0.9em;
@@ -224,6 +359,7 @@ h1 {
 #content h4 {
     margin-top: 2rem;
     margin-bottom: 1rem;
+    color: var(--hero-title-color);
 }
 
 @media (max-width: 768px) {
@@ -262,7 +398,7 @@ h1 {
 
 .bc-path-link:hover,
 .bc-toc-link:hover {
-    color: #fff !important;
+    color: var(--nav-hover) !important;
     text-decoration: underline !important;
 }
 
@@ -287,7 +423,7 @@ mark {
 .tag-list {
     margin: 0 0 2rem 0;
     font-size: 0.95rem;
-    color: #555555;
+    color: var(--tag-list-color);
     font-family: "Google Sans Code", monospace;
 }
 
@@ -297,13 +433,13 @@ mark {
 
 .tag {
     cursor: pointer;
-    color: #777777;
+    color: var(--tag-color);
     transition: color 0.3s ease;
 }
 
 .tag:hover,
 .tag.active {
-    color: #ffffff;
+    color: var(--tag-hover);
 }
 
 /* --- Image Lightbox --- */
@@ -373,7 +509,7 @@ mark {
         max-height: calc(100vh - 180px);
         overflow-y: auto;
         padding-left: 1rem;
-        border-left: 1px solid #333;
+        border-left: 1px solid var(--toc-border);
         font-size: 0.85rem;
     }
     #floating-tree {
@@ -385,7 +521,7 @@ mark {
         max-height: calc(100vh - 180px);
         overflow-y: auto;
         padding-right: 1rem;
-        border-right: 1px solid #333;
+        border-right: 1px solid var(--toc-border);
         font-size: 0.85rem;
     }
     /* 스크롤바 숨기기 */
@@ -415,10 +551,10 @@ mark {
     #floating-toc ul ul {
         padding-left: 1rem;
         margin-top: 0.6rem;
-        border-left: 1px solid #333;
+        border-left: 1px solid var(--toc-border);
     }
     #floating-toc a {
-        color: #666;
+        color: var(--toc-link);
         text-decoration: none;
         display: block;
         padding-left: 0.5rem;
@@ -426,10 +562,10 @@ mark {
         line-height: 1.4;
     }
     #floating-toc a:hover {
-        color: #aaa;
+        color: var(--toc-link-hover);
     }
     #floating-toc a.active {
-        color: #fff;
+        color: var(--toc-link-active);
         font-weight: 500;
         position: relative;
     }
@@ -440,7 +576,7 @@ mark {
         top: 0;
         bottom: 0;
         width: 2px;
-        background-color: #fff;
+        background-color: var(--toc-link-active);
         border-radius: 2px;
     }
     /* 중첩된 리스트의 active bar 위치 보정 */
@@ -465,36 +601,31 @@ mark {
     border-collapse: collapse;
     margin: 0;
     font-size: 0.95rem;
-    color: #e0e0e0;
+    color: var(--text-color);
 }
 
 #content th,
 #content td {
     padding: 0.8rem 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.2); /* 깔끔하고 얇은 반투명 흰색 선 */
+    border: 1px solid var(--table-border); /* 깔끔하고 얇은 반투명 흰색 선 */
     text-align: left;
 }
 
 #content th {
-    background-color: rgba(
-        255,
-        255,
-        255,
-        0.04
-    ); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
-    color: #ffffff;
+    background-color: var(--table-header-bg); /* 헤더 영역에 아주 옅은 투명 흰색 적용 */
+    color: var(--table-header-text);
     font-weight: 600;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+    border-bottom: 2px solid var(--table-header-border);
 }
 
 #content tr:nth-child(even) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--table-row-even);
 }
 
 .tree-view {
     font-family: Ridibatang;
     font-size: 0.95rem;
-    color: #ddd;
+    color: var(--tree-color);
     margin-top: 1rem;
     line-height: 1.4;
 }
@@ -532,13 +663,13 @@ mark {
 }
 
 .tree-view li::before {
-    border-top: 1px solid #777;
+    border-top: 1px solid var(--tree-line);
     top: 0.7em;
     width: 0.8rem;
 }
 
 .tree-view li::after {
-    border-left: 1px solid #777;
+    border-left: 1px solid var(--tree-line);
     top: 0;
     bottom: 0;
 }
@@ -557,7 +688,7 @@ mark {
     cursor: pointer;
     display: inline-block;
     user-select: none;
-    color: #fff;
+    color: var(--tree-summary);
     font-weight: bold;
 }
 
@@ -574,7 +705,7 @@ mark {
 }
 
 #content tr:hover {
-    background-color: rgba(255, 255, 255, 0.03); /* 호버 시 미세하게 밝아짐 */
+    background-color: var(--table-row-hover); /* 호버 시 미세하게 밝아짐 */
 }
 
 /* 탭 네비게이션 스타일 */
@@ -588,8 +719,8 @@ mark {
 
 .tab-btn {
     background: transparent;
-    border: 1px solid #333;
-    color: #888;
+    border: 1px solid var(--tab-border);
+    color: var(--tab-text);
     padding: 0.4rem 1rem;
     border-radius: 20px;
     font-size: 0.9rem;
@@ -600,14 +731,14 @@ mark {
 }
 
 .tab-btn:hover {
-    color: #fff;
-    border-color: #666;
+    color: var(--tab-hover-text);
+    border-color: var(--tab-hover-border);
 }
 
 .tab-btn.active {
-    color: #fff;
-    background-color: #333;
-    border-color: #555;
+    color: var(--tab-hover-text);
+    background-color: var(--tab-active-bg);
+    border-color: var(--tab-active-border);
 }
 
 /* PDF 컨테이너 스타일 */
@@ -624,5 +755,5 @@ mark {
     max-width: 100%;
     height: auto;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    border: 1px solid #333;
+    border: 1px solid var(--pdf-border);
 }

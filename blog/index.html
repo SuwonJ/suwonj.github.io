@@ -4,13 +4,36 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>블로그</title>
+        <link
+            rel="icon"
+            href="/assets/suwonjiconwhite.svg"
+            type="image/x-icon"
+        />
         <link rel="stylesheet" href="../css/global.css" />
+        <script>
+            (function() {
+                const savedTheme = localStorage.getItem("theme") || "dark";
+                if (savedTheme === "light") {
+                    document.documentElement.classList.add("light-mode");
+                }
+            })();
+        </script>
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css"
         />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-        <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap" rel="stylesheet" onerror="this.onerror=null;this.href='';">
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap"
+            rel="stylesheet"
+            onerror="
+                this.onerror = null;
+                this.href = '';
+            "
+        />
 
         <style>
             /* 캔버스 고정 */
@@ -26,11 +49,11 @@
 
             /* 마크다운 본문 */
             #content a {
-                color: #888;
+                color: var(--nav-text);
                 text-decoration: none;
             }
             #content a:hover {
-                color: #fff;
+                color: var(--nav-hover);
             }
         </style>
     </head>
@@ -46,7 +69,9 @@
                 margin: 0 auto;
             "
         >
-            <h1 id="page-title" style="font-size: 2rem; margin-bottom: 1rem">블로그</h1>
+            <h1 id="page-title" style="font-size: 2rem; margin-bottom: 1rem">
+                블로그
+            </h1>
             <div id="tag-container"></div>
             <hr
                 style="
@@ -60,7 +85,7 @@
             />
             <div id="content" style="line-height: 1.8">로딩 중...</div>
         </main>
-        
+
         <aside id="floating-tree"></aside>
         <aside id="floating-toc"></aside>
 
