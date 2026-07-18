@@ -161,14 +161,6 @@
     ]
   },
   {
-    "id": "setups-doublekakao",
-    "title": "카카오톡 여러 폰에서 같이 쓰기",
-    "date": "2023-10-15",
-    "tags": [
-      "kakaotalk"
-    ]
-  },
-  {
     "id": "setups/doublekakao",
     "title": "카카오톡 여러 폰에서 같이 쓰기",
     "date": "2023-10-15",
@@ -177,28 +169,11 @@
     ]
   },
   {
-    "id": "setups-galaxyfont",
-    "title": "갤럭시 폰트 ttf 폰트 파일로 아무 폰트로나 바꾸기",
-    "date": "2023-08-15",
-    "tags": [
-      "font"
-    ]
-  },
-  {
     "id": "setups/galaxyfont",
     "title": "갤럭시 폰트 ttf 폰트 파일로 아무 폰트로나 바꾸기",
     "date": "2023-08-15",
     "tags": [
       "font"
-    ]
-  },
-  {
-    "id": "test2",
-    "title": "테스트 이",
-    "date": "2023-07-20",
-    "tags": [
-      "Life",
-      "Tech"
     ]
   }
 ]

@@ -43,10 +43,16 @@
     "date": "2024-11-01",
     "tabs": [
       {
+        "id": "markdown",
+        "label": "마크다운",
+        "type": "markdown",
+        "file": "math-ia-current/mathiav1.md"
+      },
+      {
         "id": "pdf",
         "label": "논문 원본 (PDF)",
         "type": "pdf",
-        "file": "math-ia-old/mathia-old.pdf"
+        "file": "math-ia-old/mathiav1.pdf"
       }
     ]
   }
