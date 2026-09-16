@@ -69,19 +69,25 @@ export async function fetchPostComments(id) {
 }
 
 /**
- * 마스토돈 툿을 블로그용 마크다운 및 메타데이터로 정제하는 함수
+ * 마스토돈 툿을 블로그/연구/링크 페이지용 마크다운 및 메타데이터로 정제하는 함수
  */
 export function parseMastodonStatus(status) {
   const rawHtml = status.content || "";
   const allTags = (status.tags || []).map(t => t.name);
 
-  // 카테고리 태그 식별 (#blog, #research, #tmp)
-  const categoryTags = ["blog", "research", "tmp", "draft", "블로그", "연구", "임시", "temp"];
+  // 카테고리 태그 식별 (#blog, #research, #page, #tmp)
+  const categoryTags = [
+    "blog", "research", "page", "link", "tmp", "draft",
+    "블로그", "연구", "페이지", "링크", "임시", "temp"
+  ];
   const tmpTags = ["tmp", "draft", "임시", "temp"];
+  const pageTags = ["page", "link", "페이지", "링크"];
 
   let category = "blog";
   if (allTags.some(t => tmpTags.includes(t.toLowerCase()))) {
     category = "tmp";
+  } else if (allTags.some(t => pageTags.includes(t.toLowerCase()))) {
+    category = "page";
   } else if (allTags.some(t => ["research", "연구"].includes(t.toLowerCase()))) {
     category = "research";
   } else if (allTags.some(t => ["blog", "블로그"].includes(t.toLowerCase()))) {
@@ -108,7 +114,7 @@ export function parseMastodonStatus(status) {
   });
 
   let plainText = doc.body.textContent || "";
-  
+
   // HTML 엔티티 복원
   const txtDecoder = document.createElement("textarea");
   txtDecoder.innerHTML = plainText;
@@ -165,6 +171,7 @@ export function parseMastodonStatus(status) {
     allTags: allTags,
     isDraft: isDraft,
     category: category,
+    visibility: status.visibility || "public",
     media: status.media_attachments || [],
     url: status.url,
     favouritesCount: status.favourites_count || 0,
@@ -172,4 +179,3 @@ export function parseMastodonStatus(status) {
     repliesCount: status.replies_count || 0,
   };
 }
-
