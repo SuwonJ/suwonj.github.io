@@ -1,0 +1,57 @@
+const VISIBILITY_KEY = 'sulog_write_visibility';
+
+function setPageVisibilityDefault() {
+  const select = document.getElementById('write-visibility');
+  if (!select) return;
+  select.value = 'unlisted';
+  localStorage.setItem(VISIBILITY_KEY, 'unlisted');
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function ensurePageHint() {
+  const pageOption = document.querySelector('.cat-opt[data-cat="page"]');
+  const visibility = document.getElementById('write-visibility');
+  if (!pageOption || !visibility) return false;
+
+  let hint = document.getElementById('write-page-hint');
+  if (!hint) {
+    hint = document.createElement('span');
+    hint.id = 'write-page-hint';
+    hint.style.cssText = 'font-size:.72rem;color:#a7f3d0;margin-left:.35rem;display:none;';
+    hint.textContent = '링크 전용 · 사이트 목록 미노출';
+    visibility.insertAdjacentElement('afterend', hint);
+  }
+
+  const syncHint = () => {
+    const active = document.querySelector('.cat-opt.active')?.dataset.cat;
+    hint.style.display = active === 'page' ? 'inline' : 'none';
+  };
+
+  pageOption.addEventListener('click', () => {
+    setPageVisibilityDefault();
+    queueMicrotask(syncHint);
+  });
+
+  const selector = document.querySelector('.cat-selector');
+  if (selector) {
+    new MutationObserver(syncHint).observe(selector, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  }
+
+  syncHint();
+  return true;
+}
+
+function install() {
+  if (ensurePageHint()) return;
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    if (ensurePageHint() || tries > 40) clearInterval(timer);
+  }, 100);
+}
+
+install();
