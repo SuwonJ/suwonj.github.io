@@ -25,8 +25,12 @@
           .replace('<span>Sulog Studio</span>', '<span>Sulog Write</span>')
           .replace('<span class="badge">PRO CMS</span>', '<span class="badge">WRITE</span>')
           .replace(
+            '<div class="cat-opt" data-cat="research">#research</div>',
+            '<div class="cat-opt" data-cat="research">#research</div><div class="cat-opt" data-cat="page" style="color:#a7f3d0;">#page (링크)</div>'
+          )
+          .replace(
             '<script type="module" src="./admin.js"><\/script>',
-            '<script type="module" src="./write.js"><\/script><script type="module" src="./pdf.js"><\/script>'
+            '<script type="module" src="./write.js"><\/script><script type="module" src="./pdf.js"><\/script><script type="module" src="./page-mode.js"><\/script>'
           );
 
         document.open();
