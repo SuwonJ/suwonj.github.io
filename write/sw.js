@@ -1,9 +1,10 @@
-const CACHE_NAME = 'sulog-write-v5';
+const CACHE_NAME = 'sulog-write-v6';
 const APP_SHELL = [
   '/write/',
   '/write/index.html',
   '/write/write.js',
   '/write/editor.js',
+  '/write/editor-guard.js',
   '/write/pdf.js',
   '/write/page-mode.js',
   '/admin/index.html',
