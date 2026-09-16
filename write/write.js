@@ -164,13 +164,35 @@ async function registerServiceWorker() {
   }
 }
 
+async function waitForAdminReady(timeoutMs = 8000) {
+  const start = performance.now();
+
+  // admin.js는 initAdminStudio()를 비동기로 호출하지만 그 Promise를 export하지 않는다.
+  // import()가 끝났다고 loadDraft()/setupEditorAndPreview()까지 끝난 것은 아니므로,
+  // 인증 UI가 준비된 뒤 한 프레임 더 기다려 초기화가 textarea를 늦게 덮어쓰는 race를 막는다.
+  while (performance.now() - start < timeoutMs) {
+    const authReady = document.querySelector('#btn-login, .user-chip');
+    const textarea = document.getElementById('editor-textarea');
+    if (authReady && textarea) {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
+  console.warn('Admin initialization readiness check timed out; continuing with textarea state as-is.');
+}
+
 await registerServiceWorker();
 await restoreIndexedDbDraft();
 installFetchLayer();
 installVisibilityControl();
 
 // 기존 CMS 로직을 그대로 재사용한다. DOM은 /admin/index.html과 동일하다.
+// 중요: admin.js 내부 초기화가 끝나기 전에 CodeMirror를 붙이면 늦게 실행된 loadDraft()가
+// 사용자가 막 입력한 내용을 textarea -> CodeMirror 방향으로 덮어쓸 수 있다.
 await import('../admin/admin.js');
+await waitForAdminReady();
 
 installDraftMirror();
 updateConnectionState();
