@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sulog-write-v6';
+const CACHE_NAME = 'sulog-write-v7';
 const APP_SHELL = [
   '/write/',
   '/write/index.html',
@@ -35,8 +35,6 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-
-  // API/OAuth는 캐시하지 않는다. 앱 코드/폰트/CDN/CodeMirror 모듈은 stale-while-revalidate.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/oauth/')) return;
 
   event.respondWith((async () => {
