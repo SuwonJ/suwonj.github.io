@@ -20,12 +20,88 @@ export async function fetchPostsByTag(tag) {
   }
 }
 
+function statusContentToMarkdown(status, { removeTags = true } = {}) {
+  const rawHtml = status?.content || "";
+  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+
+  if (removeTags) {
+    doc.querySelectorAll('a.hashtag').forEach(a => a.remove());
+  }
+
+  doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+  doc.querySelectorAll('p').forEach(p => {
+    p.insertAdjacentText('afterend', '\n\n');
+  });
+
+  let plainText = doc.body.textContent || "";
+  const txtDecoder = document.createElement("textarea");
+  txtDecoder.innerHTML = plainText;
+  let markdownText = txtDecoder.value.trim();
+
+  if (removeTags) {
+    markdownText = markdownText.replace(/(^|\s)#[^\s#]+/g, '').trim();
+  }
+
+  return markdownText;
+}
+
+function buildDocumentThreadChain(rootStatus, descendants = []) {
+  const accountId = String(rootStatus?.account?.id || '');
+  const chain = [];
+  const used = new Set();
+  let parentId = String(rootStatus?.id || '');
+
+  while (parentId) {
+    const candidates = descendants
+      .filter(status => !used.has(String(status.id)))
+      .filter(status => String(status.in_reply_to_id || '') === parentId)
+      .filter(status => String(status.account?.id || '') === accountId)
+      .filter(status => !(status.spoiler_text || '').trim())
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (!candidates.length) break;
+    const next = candidates[0];
+    chain.push(next);
+    used.add(String(next.id));
+    parentId = String(next.id);
+  }
+
+  return chain;
+}
+
+async function fetchRawStatusAndContext(id) {
+  const [statusRes, contextRes] = await Promise.all([
+    fetch(`${INSTANCE_URL}/api/v1/statuses/${id}`),
+    fetch(`${INSTANCE_URL}/api/v1/statuses/${id}/context`)
+  ]);
+
+  if (!statusRes.ok) throw new Error("Failed to fetch status");
+  const status = await statusRes.json();
+  const context = contextRes.ok ? await contextRes.json() : { descendants: [] };
+  return { status, context };
+}
+
 export async function fetchPostById(id) {
   try {
-    const res = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}`);
-    if (!res.ok) throw new Error("Failed to fetch status");
-    const status = await res.json();
-    return parseMastodonStatus(status);
+    const { status, context } = await fetchRawStatusAndContext(id);
+    const post = parseMastodonStatus(status);
+    const thread = buildDocumentThreadChain(status, context.descendants || []);
+
+    if (thread.length > 0) {
+      const chunks = thread
+        .map(reply => statusContentToMarkdown(reply, { removeTags: false }))
+        .filter(Boolean);
+      if (chunks.length > 0) {
+        post.markdown = [post.markdown, ...chunks].filter(Boolean).join('\n\n');
+      }
+      post.threadChunkIds = thread.map(reply => reply.id);
+      post.threadLength = thread.length + 1;
+    } else {
+      post.threadChunkIds = [];
+      post.threadLength = 1;
+    }
+
+    return post;
   } catch (err) {
     console.error(`Failed to fetch post ${id}:`, err);
     return null;
@@ -34,34 +110,37 @@ export async function fetchPostById(id) {
 
 export async function fetchPostComments(id) {
   try {
-    const res = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}/context`);
-    if (!res.ok) throw new Error("Failed to fetch status context");
-    const context = await res.json();
+    const { status, context } = await fetchRawStatusAndContext(id);
     const descendants = context.descendants || [];
-    return descendants.map(reply => ({
-      id: reply.id,
-      url: reply.url,
-      createdAt: new Date(reply.created_at).toLocaleDateString("ko-KR", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit"
-      }),
-      account: {
-        username: reply.account.username,
-        acct: reply.account.acct,
-        displayName: reply.account.display_name || reply.account.username,
-        avatar: reply.account.avatar_static || reply.account.avatar,
-        url: reply.account.url
-      },
-      contentHtml: reply.content || "",
-      media: (reply.media_attachments || []).map(m => ({
-        type: m.type,
-        url: m.url || m.preview_url,
-        description: m.description
-      }))
-    }));
+    const documentThread = buildDocumentThreadChain(status, descendants);
+    const chunkIds = new Set(documentThread.map(reply => String(reply.id)));
+
+    return descendants
+      .filter(reply => !chunkIds.has(String(reply.id)))
+      .map(reply => ({
+        id: reply.id,
+        url: reply.url,
+        createdAt: new Date(reply.created_at).toLocaleDateString("ko-KR", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        }),
+        account: {
+          username: reply.account.username,
+          acct: reply.account.acct,
+          displayName: reply.account.display_name || reply.account.username,
+          avatar: reply.account.avatar_static || reply.account.avatar,
+          url: reply.account.url
+        },
+        contentHtml: reply.content || "",
+        media: (reply.media_attachments || []).map(m => ({
+          type: m.type,
+          url: m.url || m.preview_url,
+          description: m.description
+        }))
+      }));
   } catch (err) {
     console.error(`Failed to fetch comments for ${id}:`, err);
     return [];
@@ -69,13 +148,12 @@ export async function fetchPostComments(id) {
 }
 
 /**
- * 마스토돈 툿을 블로그/연구/링크 페이지용 마크다운 및 메타데이터로 정제하는 함수
+ * 마스토돈 root 툿을 블로그/연구/링크 페이지용 마크다운 및 메타데이터로 정제하는 함수.
+ * 긴 문서의 reply chunk 결합은 fetchPostById()가 담당한다.
  */
 export function parseMastodonStatus(status) {
-  const rawHtml = status.content || "";
   const allTags = (status.tags || []).map(t => t.name);
 
-  // 카테고리 태그 식별 (#blog, #research, #page, #tmp)
   const categoryTags = [
     "blog", "research", "page", "link", "tmp", "draft",
     "블로그", "연구", "페이지", "링크", "임시", "temp"
@@ -95,47 +173,15 @@ export function parseMastodonStatus(status) {
   }
 
   const isDraft = category === "tmp" || allTags.some(t => tmpTags.includes(t.toLowerCase()));
+  const displayTags = allTags.filter(t => !categoryTags.includes(t.toLowerCase()));
+  let markdownText = statusContentToMarkdown(status, { removeTags: true });
 
-  // 화면 표시용 순수 주제 태그 (카테고리 및 임시 태그 제외)
-  const displayTags = allTags.filter(
-    t => !categoryTags.includes(t.toLowerCase())
-  );
-
-  // DOMParser로 HTML 본문 텍스트 복원
-  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-
-  // 본문 안의 모든 해시태그 <a> 태그 완전히 제거 (본문에서 태그 문구 노출 방지)
-  doc.querySelectorAll('a.hashtag').forEach(a => a.remove());
-
-  // <br> -> \n, <p> -> \n\n 처리로 줄바꿈 복원
-  doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-  doc.querySelectorAll('p').forEach(p => {
-    p.insertAdjacentText('afterend', '\n\n');
-  });
-
-  let plainText = doc.body.textContent || "";
-
-  // HTML 엔티티 복원
-  const txtDecoder = document.createElement("textarea");
-  txtDecoder.innerHTML = plainText;
-  let markdownText = txtDecoder.value.trim();
-
-  // 본문 텍스트 내에 쌩 텍스트로 남아있는 해시태그(#tag) 패턴 제거
-  markdownText = markdownText.replace(/(^|\s)#[^\s#]+/g, '').trim();
-
-  // ----------------------------------------------------
-  // 제목(Title) 추출 스키마
-  // ----------------------------------------------------
   let title = "";
-
-  // 1순위: 마스토돈 CW (Content Warning / 내용 경고 입력란)
   if (status.spoiler_text && status.spoiler_text.trim().length > 0) {
     title = status.spoiler_text.trim();
   }
 
   const lines = markdownText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  // 2순위: 본문 첫 줄에서 "Title: 제목" 또는 "[제목]" 형식
   if (!title && lines.length > 0) {
     const firstLine = lines[0];
 
@@ -158,22 +204,21 @@ export function parseMastodonStatus(status) {
     }
   }
 
-  if (!title) {
-    title = "무제 포스트";
-  }
+  if (!title) title = "무제 포스트";
 
   return {
     id: status.id,
-    title: title,
+    title,
     markdown: markdownText,
     date: status.created_at ? status.created_at.split("T")[0] : "",
     tags: displayTags,
-    allTags: allTags,
-    isDraft: isDraft,
-    category: category,
+    allTags,
+    isDraft,
+    category,
     visibility: status.visibility || "public",
     media: status.media_attachments || [],
     url: status.url,
+    accountId: status.account?.id || null,
     favouritesCount: status.favourites_count || 0,
     reblogsCount: status.reblogs_count || 0,
     repliesCount: status.replies_count || 0,
