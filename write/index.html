@@ -15,7 +15,7 @@
   <script>
     (async () => {
       try {
-        const response = await fetch('/admin/index.html');
+        const response = await fetch('/admin/index.html?v=19');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         let html = await response.text();
 
@@ -31,7 +31,7 @@
           )
           .replace(
             '<script type="module" src="./admin.js"><\/script>',
-            '<script type="module" src="./write.js"><\/script><script type="module" src="./pdf.js"><\/script><script type="module" src="./page-mode.js"><\/script><script type="module" src="./editor-guard.js"><\/script>'
+            '<script type="module" src="./write.js?v=19"><\/script><script type="module" src="./pdf.js?v=19"><\/script><script type="module" src="./page-mode.js?v=19"><\/script><script type="module" src="./editor-guard.js?v=19"><\/script>'
           );
 
         document.open();

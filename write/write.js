@@ -204,7 +204,7 @@ simplifyWriteUi();
 // 기존 CMS 로직을 그대로 재사용한다. DOM은 /admin/index.html과 동일하다.
 // 중요: admin.js 내부 초기화가 끝나기 전에 CodeMirror를 붙이면 늦게 실행된 loadDraft()가
 // 사용자가 막 입력한 내용을 textarea -> CodeMirror 방향으로 덮어쓸 수 있다.
-await import('../admin/admin.js');
+await import('../admin/admin.js?v=19');
 await waitForAdminReady();
 
 installDraftMirror();
@@ -214,7 +214,7 @@ window.addEventListener('offline', updateConnectionState);
 
 // CodeMirror 로딩에 실패해도 기존 textarea CMS는 그대로 쓸 수 있게 fallback한다.
 try {
-  const { installWriteEditor } = await import('./editor.js');
+  const { installWriteEditor } = await import('./editor.js?v=19');
   await installWriteEditor();
 } catch (error) {
   console.error('CodeMirror initialization failed; falling back to textarea:', error);

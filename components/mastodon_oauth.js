@@ -6,6 +6,9 @@ const THREAD_MARKER = "\u2063\u2063";
 const FALLBACK_MAX_CHARACTERS = 500;
 const THREAD_SAFETY_MARGIN = 12;
 let cachedMaxCharacters = null;
+let cachedAccount = null;
+let cachedAccountToken = null;
+let accountRequest = null;
 
 function generateRandomString(length) {
   const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -148,15 +151,26 @@ export async function fetchAccountInfo() {
   const token = getStoredToken();
   if (!token) return null;
 
-  try {
-    const res = await fetch(`${INSTANCE_URL}/api/v1/accounts/verify_credentials`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  }
+  if (cachedAccount && cachedAccountToken === token) return cachedAccount;
+  if (accountRequest && cachedAccountToken === token) return accountRequest;
+
+  cachedAccountToken = token;
+  accountRequest = (async () => {
+    try {
+      const res = await fetch(`${INSTANCE_URL}/api/v1/accounts/verify_credentials`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      cachedAccount = await res.json();
+      return cachedAccount;
+    } catch (e) {
+      return null;
+    } finally {
+      accountRequest = null;
+    }
+  })();
+
+  return accountRequest;
 }
 
 export async function uploadMediaFile(file) {
@@ -394,11 +408,28 @@ function htmlTextStartsWithThreadMarker(status) {
   return (doc.body.textContent || '').trimStart().startsWith(THREAD_MARKER);
 }
 
-async function fetchThreadChain(rootId, accountId = null) {
+function statusContentToPlainText(status) {
+  const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
+  doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+  doc.querySelectorAll('p').forEach(p => p.insertAdjacentText('afterend', '\n\n'));
+  return (doc.body.textContent || '')
+    .split(THREAD_MARKER).join('')
+    .replace(/\r\n?/g, '\n')
+    .trim();
+}
+
+function normalizeThreadText(text) {
+  return String(text || '').replace(/\r\n?/g, '\n').trim();
+}
+
+async function fetchThreadChain(rootId, accountId = null, { strict = false } = {}) {
   const token = getStoredToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${INSTANCE_URL}/api/v1/statuses/${rootId}/context`, { headers });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    if (strict) throw new Error(`타래를 불러오지 못했습니다. (${res.status}) 잠시 후 다시 시도해 주세요.`);
+    return [];
+  }
   const context = await res.json();
   const descendants = context.descendants || [];
   const chain = [];
@@ -437,22 +468,37 @@ export async function postStatus({ statusText, spoilerText, mediaIds = [] }) {
   return root;
 }
 
-export async function updateStatus({ id, statusText, spoilerText, mediaIds = [] }) {
+export async function updateStatus({ id, statusText, spoilerText, mediaIds = [], existingThread = null }) {
   const chunks = await splitStatusText(statusText);
-  const account = await fetchAccountInfo();
-  const existing = await fetchThreadChain(id, account?.id || null);
+  let existing;
+  if (Array.isArray(existingThread)) {
+    existing = existingThread
+      .filter(chunk => chunk && chunk.id)
+      .map(chunk => ({ id: String(chunk.id), sourceText: normalizeThreadText(chunk.text) }));
+  } else {
+    const account = await fetchAccountInfo();
+    const chain = await fetchThreadChain(id, account?.id || null, { strict: true });
+    existing = chain.map(status => ({
+      id: String(status.id),
+      sourceText: statusContentToPlainText(status)
+    }));
+  }
 
   const root = await rawUpdateStatus({ id, statusText: chunks[0], spoilerText, mediaIds });
   const desired = chunks.slice(1);
   const common = Math.min(existing.length, desired.length);
+  const finalThread = [];
 
   for (let i = 0; i < common; i += 1) {
-    await rawUpdateStatus({
-      id: existing[i].id,
-      statusText: `${THREAD_MARKER}${desired[i]}`,
-      spoilerText: '',
-      mediaIds: []
-    });
+    if (normalizeThreadText(existing[i].sourceText) !== normalizeThreadText(desired[i])) {
+      await rawUpdateStatus({
+        id: existing[i].id,
+        statusText: `${THREAD_MARKER}${desired[i]}`,
+        spoilerText: '',
+        mediaIds: []
+      });
+    }
+    finalThread.push({ id: existing[i].id, text: desired[i] });
   }
 
   let parentId = common > 0 ? existing[common - 1].id : id;
@@ -462,18 +508,23 @@ export async function updateStatus({ id, statusText, spoilerText, mediaIds = [] 
       inReplyToId: parentId
     });
     parentId = child.id;
+    finalThread.push({ id: String(child.id), text: desired[i] });
   }
 
   for (let i = existing.length - 1; i >= desired.length; i -= 1) {
     await rawDeleteStatus(existing[i].id);
   }
 
-  return root;
+  return {
+    ...root,
+    sulog_thread_chunk_ids: finalThread.map(chunk => chunk.id),
+    sulog_thread_chunks: finalThread
+  };
 }
 
 export async function deleteStatus(id) {
   const account = await fetchAccountInfo();
-  const children = await fetchThreadChain(id, account?.id || null);
+  const children = await fetchThreadChain(id, account?.id || null, { strict: true });
   for (let i = children.length - 1; i >= 0; i -= 1) {
     await rawDeleteStatus(children[i].id);
   }
@@ -482,18 +533,24 @@ export async function deleteStatus(id) {
 
 async function enrichStatusWithThread(status, accountId) {
   if (!status || Number(status.replies_count || 0) < 1) return status;
-  try {
-    const chain = await fetchThreadChain(status.id, accountId);
-    if (!chain.length) return status;
-    return {
-      ...status,
-      content: [status.content, ...chain.map(child => child.content)].join('<p></p>'),
-      sulog_thread_chunk_ids: chain.map(child => child.id)
-    };
-  } catch (error) {
-    console.warn(`Failed to reassemble thread ${status.id}:`, error);
-    return status;
-  }
+  const chain = await fetchThreadChain(status.id, accountId, { strict: true });
+  if (!chain.length) return { ...status, sulog_thread_chunks: [], sulog_thread_chunk_ids: [] };
+  const chunks = chain.map(child => ({
+    id: String(child.id),
+    text: statusContentToPlainText(child)
+  }));
+  return {
+    ...status,
+    content: [status.content, ...chain.map(child => child.content)].join('<p></p>'),
+    sulog_thread_chunk_ids: chunks.map(chunk => chunk.id),
+    sulog_thread_chunks: chunks
+  };
+}
+
+// 목록에서는 타래를 펼치지 않고, 사용자가 실제 편집을 시작할 때 한 글만 지연 로드한다.
+export async function fetchStatusWithThread(status) {
+  if (!status || Number(status.replies_count || 0) < 1) return status;
+  return enrichStatusWithThread(status, status.account?.id || null);
 }
 
 export async function fetchMyStatuses({ limit = 40, maxId = null } = {}) {
@@ -509,6 +566,5 @@ export async function fetchMyStatuses({ limit = 40, maxId = null } = {}) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Failed to fetch statuses: ${await res.text()}`);
 
-  const statuses = await res.json();
-  return Promise.all(statuses.map(status => enrichStatusWithThread(status, user.id)));
+  return await res.json();
 }

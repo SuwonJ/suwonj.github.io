@@ -1,17 +1,17 @@
-const CACHE_NAME = 'sulog-write-v13';
+const CACHE_NAME = 'sulog-write-v19';
 const APP_SHELL = [
   '/write/',
   '/write/index.html',
-  '/write/write.js',
-  '/write/editor.js',
-  '/write/editor-guard.js',
-  '/write/pdf.js',
-  '/write/page-mode.js',
-  '/admin/index.html',
-  '/admin/admin.js',
-  '/components/mastodon_oauth.js',
-  '/components/mastodon.js',
-  '/components/content-dependencies.js'
+  '/write/write.js?v=19',
+  '/write/editor.js?v=19',
+  '/write/editor-guard.js?v=19',
+  '/write/pdf.js?v=19',
+  '/write/page-mode.js?v=19',
+  '/admin/index.html?v=19',
+  '/admin/admin.js?v=19',
+  '/components/mastodon_oauth.js?v=19',
+  '/components/mastodon.js?v=19',
+  '/components/content-dependencies.js?v=19'
 ];
 
 self.addEventListener('install', event => {
@@ -39,24 +39,16 @@ self.addEventListener('fetch', event => {
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(request);
-
-    const networkPromise = fetch(request)
-      .then(response => {
-        if (response && (response.ok || response.type === 'opaque')) {
-          cache.put(request, response.clone()).catch(() => {});
-        }
-        return response;
-      })
-      .catch(() => null);
-
-    if (cached) {
-      event.waitUntil(networkPromise);
-      return cached;
+    try {
+      const network = await fetch(request);
+      if (network && (network.ok || network.type === 'opaque')) {
+        cache.put(request, network.clone()).catch(() => {});
+      }
+      return network;
+    } catch (_) {
+      const cached = await cache.match(request);
+      if (cached) return cached;
     }
-
-    const network = await networkPromise;
-    if (network) return network;
 
     if (request.mode === 'navigate') {
       return (await cache.match('/write/index.html')) || Response.error();

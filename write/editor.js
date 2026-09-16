@@ -121,16 +121,6 @@ function pushRange(ranges, decoration, from, to = from) {
   ranges.push(decoration.range(from, to));
 }
 
-function cursorTouching(selection, from, to) {
-  // 사용자가 드래그 또는 전체 선택(Ctrl+A) 중일 때: 수식이 선택 범위에 포함되면 원문을 노출하여 선택 영역이 온전히 보이도록 함
-  if (selection.from !== selection.to) {
-    return selection.from < to && selection.to > from;
-  }
-  // 단순 커서: 내부에서만 원문을 보인다. 닫는 구분자를 입력한 직후에는 즉시 렌더한다.
-  const cursor = selection.head;
-  return cursor > from && cursor < to;
-}
-
 function findCodeRanges(text, offset = 0) {
   const ranges = [];
   let cursor = 0;
@@ -189,9 +179,8 @@ function findCodeRanges(text, offset = 0) {
 
 function buildLiveDecorations(view) {
   const ranges = [];
+  const atomicRanges = [];
   const doc = view.state.doc;
-  const selection = view.state.selection.main;
-  const cursor = selection.head;
 
   // 화면 근처만 다시 계산한다. 큰 강의노트에서도 매 키 입력마다 전체 문서를 훑지 않는다.
   const visible = view.visibleRanges.length ? view.visibleRanges : [{ from: 0, to: doc.length }];
@@ -208,8 +197,6 @@ function buildLiveDecorations(view) {
     const to = from + match[0].length;
     if (overlapsAny(from, to, codeRanges)) continue;
     mathRanges.push({ from, to });
-    if (cursorTouching(selection, from, to)) continue;
-
     const firstLine = doc.lineAt(from);
     const lastLine = doc.lineAt(Math.max(from, to - 1));
     const before = doc.sliceString(firstLine.from, from).trim();
@@ -220,14 +207,13 @@ function buildLiveDecorations(view) {
     // 완전히 독립된 블록이고 닫는 $$가 실제 줄 끝일 때만 block decoration을 쓴다.
     // trailing space가 있으면 그 공백과 caret까지 replace하지 않도록 정확한 $$ 범위만 치환한다.
     if (!before && !after && to === lastLine.to) {
-      pushRange(
-        ranges,
-        Decoration.replace({ widget: new MathWidget(tex, true) }),
-        from,
-        to
-      );
+      const decoration = Decoration.replace({ widget: new MathWidget(tex, true) });
+      pushRange(ranges, decoration, from, to);
+      pushRange(atomicRanges, decoration, from, to);
     } else {
-      pushRange(ranges, Decoration.replace({ widget: new MathWidget(tex, false) }), from, to);
+      const decoration = Decoration.replace({ widget: new MathWidget(tex, false) });
+      pushRange(ranges, decoration, from, to);
+      pushRange(atomicRanges, decoration, from, to);
     }
   }
 
@@ -240,31 +226,29 @@ function buildLiveDecorations(view) {
     if (overlapsAny(from, to, codeRanges)) continue;
     if (overlapsAny(from, to, mathRanges)) continue;
     mathRanges.push({ from, to });
-    if (cursorTouching(selection, from, to)) continue;
-    pushRange(ranges, Decoration.replace({ widget: new MathWidget(match[2].trim(), false) }), from, to);
+    const decoration = Decoration.replace({ widget: new MathWidget(match[2].trim(), false) });
+    pushRange(ranges, decoration, from, to);
+    pushRange(atomicRanges, decoration, from, to);
   }
 
   // Line-oriented Markdown: headings / blockquotes.
   let line = doc.lineAt(scanFrom);
   while (line.from <= scanTo) {
     const lineText = line.text;
-    const cursorOnLine = cursor >= line.from && cursor <= line.to;
     const heading = /^(#{1,6})\s+/.exec(lineText);
     if (heading) {
       const level = Math.min(4, heading[1].length);
       pushRange(ranges, Decoration.line({ class: `cm-live-h${level}` }), line.from);
-      if (!cursorOnLine) {
-        pushRange(ranges, Decoration.replace({}), line.from, line.from + heading[0].length);
-      } else {
-        pushRange(ranges, Decoration.mark({ class: 'cm-live-markup' }), line.from, line.from + heading[0].length);
-      }
+      const decoration = Decoration.replace({});
+      pushRange(ranges, decoration, line.from, line.from + heading[0].length);
+      pushRange(atomicRanges, decoration, line.from, line.from + heading[0].length);
     } else {
       const quote = /^>\s?/.exec(lineText);
       if (quote) {
         pushRange(ranges, Decoration.line({ class: 'cm-live-quote' }), line.from);
-        if (!cursorOnLine) {
-          pushRange(ranges, Decoration.replace({}), line.from, line.from + quote[0].length);
-        }
+        const decoration = Decoration.replace({});
+        pushRange(ranges, decoration, line.from, line.from + quote[0].length);
+        pushRange(atomicRanges, decoration, line.from, line.from + quote[0].length);
       }
     }
 
@@ -289,38 +273,45 @@ function buildLiveDecorations(view) {
       if (overlapsAny(from, to, mathRanges)) continue;
       if (rule.cls !== 'cm-live-code' && overlapsAny(from, to, codeRanges)) continue;
       if (rule.cls === 'cm-live-code' && codeRanges.some(range => range.type === 'fence' && from < range.to && to > range.from)) continue;
-      const cursorInside = cursorTouching(selection, from, to);
       const innerFrom = from + rule.open;
       const innerTo = to - rule.close;
       if (innerTo <= innerFrom) continue;
 
       pushRange(ranges, Decoration.mark({ class: rule.cls }), innerFrom, innerTo);
-      if (!cursorInside) {
-        pushRange(ranges, Decoration.replace({}), from, innerFrom);
-        pushRange(ranges, Decoration.replace({}), innerTo, to);
-      } else {
-        pushRange(ranges, Decoration.mark({ class: 'cm-live-markup' }), from, innerFrom);
-        pushRange(ranges, Decoration.mark({ class: 'cm-live-markup' }), innerTo, to);
-      }
+      const openDecoration = Decoration.replace({});
+      const closeDecoration = Decoration.replace({});
+      pushRange(ranges, openDecoration, from, innerFrom);
+      pushRange(ranges, closeDecoration, innerTo, to);
+      pushRange(atomicRanges, openDecoration, from, innerFrom);
+      pushRange(atomicRanges, closeDecoration, innerTo, to);
     }
   }
 
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
-  return Decoration.set(ranges, true);
+  atomicRanges.sort((a, b) => a.from - b.from || a.to - b.to);
+  return {
+    decorations: Decoration.set(ranges, true),
+    atomicRanges: Decoration.set(atomicRanges, true)
+  };
 }
 
 const livePreviewPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
-    this.decorations = buildLiveDecorations(view);
+    const live = buildLiveDecorations(view);
+    this.decorations = live.decorations;
+    this.atomicRanges = live.atomicRanges;
   }
 
   update(update) {
     if (update.docChanged || update.viewportChanged || update.selectionSet) {
-      this.decorations = buildLiveDecorations(update.view);
+      const live = buildLiveDecorations(update.view);
+      this.decorations = live.decorations;
+      this.atomicRanges = live.atomicRanges;
     }
   }
 }, {
-  decorations: value => value.decorations
+  decorations: value => value.decorations,
+  provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.atomicRanges || Decoration.none)
 });
 
 function replaceSelection(view, before, after = before, placeholder = '') {

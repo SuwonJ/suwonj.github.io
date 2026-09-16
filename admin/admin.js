@@ -9,11 +9,12 @@ import {
   updateStatus,
   deleteStatus,
   fetchMyStatuses,
+  fetchStatusWithThread,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js";
+} from "../components/mastodon_oauth.js?v=19";
 
-import { parseMastodonStatus } from "../components/mastodon.js";
-import { ensureMarkdown, normalizeMarkdownMath } from "../components/content-dependencies.js";
+import { parseMastodonStatus } from "../components/mastodon.js?v=19";
+import { ensureMarkdown, normalizeMarkdownMath } from "../components/content-dependencies.js?v=19";
 
 let selectedCategory = "blog"; // "blog" | "research" | "tmp"
 let uploadedMediaIds = [];
@@ -417,7 +418,10 @@ function setupPublishing() {
           id: currentEditingPost.id,
           statusText: fullStatusText,
           spoilerText: titleVal,
-          mediaIds: uploadedMediaIds
+          mediaIds: uploadedMediaIds,
+          existingThread: currentEditingPost.threadChecked
+            ? (currentEditingPost.threadChunks || [])
+            : null
         });
 
         const successMsg = selectedCategory === "tmp"
@@ -431,7 +435,12 @@ function setupPublishing() {
 
         // 수정 상태 갱신
         const parsed = parseMastodonStatus(updated);
-        currentEditingPost = parsed;
+        currentEditingPost = {
+          ...parsed,
+          rawStatus: updated,
+          threadChunks: updated.sulog_thread_chunks || [],
+          threadChecked: true
+        };
         document.getElementById("editing-post-title").innerText = parsed.title;
         updatePublishButtonState();
 
@@ -643,6 +652,8 @@ function renderPostsList() {
       catBadgeHtml = `<span class="badge-tag badge-draft">#tmp</span>`;
     } else if (post.category === "research") {
       catBadgeHtml = `<span class="badge-tag badge-research">#research</span>`;
+    } else if (post.category === "page") {
+      catBadgeHtml = `<span class="badge-tag" style="background:rgba(52,211,153,.12);color:#a7f3d0;">#page</span>`;
     } else {
       catBadgeHtml = `<span class="badge-tag">#blog</span>`;
     }
@@ -705,7 +716,27 @@ function renderPostsList() {
   });
 }
 
-function startEditingPost(post) {
+async function startEditingPost(post) {
+  if (post.repliesCount > 0 && !post.threadChecked) {
+    if (post.threadLoading) return;
+    post.threadLoading = true;
+    showToast("본문을 불러오는 중...", "sync");
+    try {
+      const rawStatus = await fetchStatusWithThread(post.rawStatus);
+      const parsed = parseMastodonStatus(rawStatus);
+      Object.assign(post, parsed, {
+        rawStatus,
+        threadChunks: rawStatus.sulog_thread_chunks || [],
+        threadChecked: true,
+        threadLoading: false
+      });
+    } catch (error) {
+      post.threadLoading = false;
+      showToast(`본문을 불러오지 못했습니다: ${error.message}`, "error");
+      return;
+    }
+  }
+
   currentEditingPost = post;
 
   // 제목, 본문, 태그 채우기
@@ -746,7 +777,10 @@ function startEditingPost(post) {
   // 에디터로 포커스
   document.getElementById("input-title").focus();
 
-  showToast(`'${post.title}' 포스트를 수정 모드로 불러왔습니다. 카테고리를 변경할 수 있습니다.`, "edit_note");
+  const threadMessage = post.threadChunks?.length
+    ? ` 타래 ${post.threadChunks.length + 1}개를 하나의 문서로 합쳤습니다.`
+    : "";
+  showToast(`'${post.title}' 포스트를 수정 모드로 불러왔습니다.${threadMessage}`, "edit_note");
 }
 
 function startNewPost() {
