@@ -67,8 +67,6 @@ function attachPlaceholder() {
   };
 
   textarea.addEventListener('input', sync);
-  const observer = new MutationObserver(sync);
-  observer.observe(host, { subtree: true, childList: true, characterData: true });
   sync();
   return true;
 }

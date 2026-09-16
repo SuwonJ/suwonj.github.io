@@ -23,10 +23,11 @@
           .replace('<title>Sulog Studio - CMS Dashboard</title>', '<title>Sulog Write</title>')
           .replace('href="/admin/" class="brand-logo"', 'href="/write/" class="brand-logo"')
           .replace('<span>Sulog Studio</span>', '<span>Sulog Write</span>')
-          .replace('<span class="badge">PRO CMS</span>', '<span class="badge">WRITE</span>')
+          .replace('<span class="badge">PRO CMS</span>', '')
+          .replaceAll('#tmp (임시)', '#tmp')
           .replace(
             '<div class="cat-opt" data-cat="research">#research</div>',
-            '<div class="cat-opt" data-cat="research">#research</div><div class="cat-opt" data-cat="page" style="color:#a7f3d0;">#page (링크)</div>'
+            '<div class="cat-opt" data-cat="research">#research</div><div class="cat-opt" data-cat="page" style="color:#a7f3d0;">#page</div>'
           )
           .replace(
             '<script type="module" src="./admin.js"><\/script>',

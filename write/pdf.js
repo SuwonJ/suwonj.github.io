@@ -7,7 +7,8 @@ function installPdfExport() {
   button.id = 'btn-export-pdf';
   button.className = 'tool-btn';
   button.title = '렌더된 문서를 인쇄하거나 PDF로 저장';
-  button.innerHTML = '<span class="material-symbols-outlined">picture_as_pdf</span><span style="font-size:.72rem;margin-left:.2rem;">PDF</span>';
+  button.setAttribute('aria-label', 'PDF');
+  button.innerHTML = '<span class="material-symbols-outlined">picture_as_pdf</span>';
   toolbar.appendChild(button);
 
   if (!document.getElementById('write-print-style')) {
@@ -103,8 +104,11 @@ function installPdfExport() {
   button.addEventListener('click', async () => {
     button.disabled = true;
     try {
-      // 기존 preview debounce(40ms)가 끝난 최신 렌더 결과를 사용한다.
-      await new Promise(resolve => setTimeout(resolve, 70));
+      if (typeof window.sulogRenderPreview === 'function') {
+        await window.sulogRenderPreview();
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
       const preview = document.getElementById('preview-body');
       if (!preview) throw new Error('렌더 프리뷰를 찾을 수 없습니다.');
 
@@ -113,6 +117,10 @@ function installPdfExport() {
       root.id = 'write-print-root';
       root.innerHTML = preview.innerHTML;
       document.body.appendChild(root);
+
+      if (document.body.classList.contains('write-mode-live') || document.body.classList.contains('write-mode-source')) {
+        document.getElementById('preview-markdown-content')?.replaceChildren();
+      }
 
       const oldTitle = document.title;
       const title = document.getElementById('input-title')?.value.trim();

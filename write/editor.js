@@ -1,7 +1,10 @@
-import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.2';
-import { Decoration, WidgetType, ViewPlugin } from 'https://esm.sh/@codemirror/view@6.43.11';
-import { Compartment } from 'https://esm.sh/@codemirror/state@6.7.4';
-import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.5.2';
+// 모든 패키지가 같은 state/view 인스턴스를 공유해야 한다. 버전이 갈리면
+// "Unrecognized extension value"로 EditorView 생성 자체가 실패한다.
+const CODEMIRROR_DEPS = '?deps=@codemirror/state@6.7.4,@codemirror/view@6.43.11';
+const { EditorView, basicSetup } = await import(`https://esm.sh/codemirror@6.0.2${CODEMIRROR_DEPS}`);
+const { Decoration, WidgetType, ViewPlugin } = await import(`https://esm.sh/@codemirror/view@6.43.11?deps=@codemirror/state@6.7.4`);
+const { Compartment } = await import('https://esm.sh/@codemirror/state@6.7.4');
+const { markdown } = await import(`https://esm.sh/@codemirror/lang-markdown@6.5.2${CODEMIRROR_DEPS}`);
 
 const MODE_KEY = 'sulog_write_editor_mode';
 const VALID_MODES = new Set(['split', 'source', 'live']);
@@ -19,8 +22,11 @@ function injectStyles() {
     #cm-editor-host .cm-content { padding: 1.35rem 1.4rem 8rem; caret-color: var(--accent-blue); min-height: 100%; }
     #cm-editor-host .cm-line { padding: 0 2px; }
     #cm-editor-host .cm-gutters { background: #111827; color: #64748b; border-right: 1px solid var(--border-color); }
-    #cm-editor-host .cm-activeLine, #cm-editor-host .cm-activeLineGutter { background: rgba(56,189,248,.045); }
-    #cm-editor-host .cm-selectionBackground { background: rgba(56,189,248,.22) !important; }
+    #cm-editor-host .cm-selectionBackground,
+    #cm-editor-host .cm-editor.cm-focused .cm-selectionBackground,
+    #cm-editor-host .cm-selectionLayer .cm-selectionBackground,
+    #cm-editor-host ::selection { background: rgba(56,189,248,.38) !important; }
+    #cm-editor-host .cm-selectionLayer { z-index: 1 !important; }
     #cm-editor-host .cm-cursor { border-left-color: var(--accent-blue); }
     #cm-editor-host .cm-focused { outline: none; }
 
@@ -34,19 +40,34 @@ function injectStyles() {
     body.write-mode-source .workspace > .pane:nth-of-type(1),
     body.write-mode-live .workspace > .pane:nth-of-type(1) { border-right: 0; }
 
-    body.write-mode-live #cm-editor-host .cm-content { font-family: var(--font-gothic); font-size: 16px; line-height: 1.78; }
-    body.write-mode-live #cm-editor-host .cm-gutters { opacity: .48; }
-    .cm-live-h1 { font-size: 1.9em; line-height: 1.3; font-weight: 750; color: #fff; }
-    .cm-live-h2 { font-size: 1.55em; line-height: 1.35; font-weight: 720; color: #fff; }
-    .cm-live-h3 { font-size: 1.28em; line-height: 1.4; font-weight: 700; color: #fff; }
+    body.write-mode-live .workspace > .pane:nth-of-type(1),
+    body.write-mode-live #cm-editor-host .cm-editor,
+    body.write-mode-live #cm-editor-host .cm-scroller { background: #121212; }
+    body.write-mode-live #cm-editor-host .cm-content {
+      width: calc(100% - 3rem);
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 0 8rem;
+      font-family: var(--font-gothic);
+      font-size: 17px;
+      line-height: 1.8;
+      color: #e0e0e0;
+    }
+    body.write-mode-live #cm-editor-host .cm-gutters { display: none; }
+    body.write-mode-live .config-bar { background: #121212; }
+    body.write-mode-live .config-bar > * { width: min(800px, calc(100% - 3rem)); margin-left: auto; margin-right: auto; }
+    body.write-mode-live .input-title { font-size: 2rem; line-height: 1.2; }
+    .cm-live-h1 { font-size: 2.5rem; line-height: 1.2; font-weight: 750; color: #fff; margin-top: 1.5rem; }
+    .cm-live-h2 { font-size: 1.65rem; line-height: 1.35; font-weight: 720; color: #fff; margin-top: 2.75rem; }
+    .cm-live-h3 { font-size: 1.3rem; line-height: 1.35; font-weight: 700; color: #fff; margin-top: 2.25rem; }
     .cm-live-h4 { font-size: 1.12em; line-height: 1.4; font-weight: 680; color: #fff; }
     .cm-live-strong { font-weight: 750; color: #fff; }
     .cm-live-em { font-style: italic; }
-    .cm-live-code { font-family: var(--font-code); background: #252b36; border: 1px solid #384253; border-radius: 4px; padding: .08em .32em; }
+    .cm-live-code { font-family: var(--font-code); background: #2a2a2a; border-radius: 4px; padding: .2rem .4rem; font-size: .9em; }
     .cm-live-markup { opacity: .26; }
-    .cm-live-quote { border-left: 2px solid #64748b; color: #b7c0ce; padding-left: .8rem !important; }
+    .cm-live-quote { border-left: 1px solid #555; color: #a0a0a0; padding-left: 1rem !important; }
     .cm-live-math-inline { display: inline-block; padding: 0 .12rem; vertical-align: middle; }
-    .cm-live-math-block { display: block; width: 100%; box-sizing: border-box; padding: .8rem .5rem; overflow-x: auto; text-align: center; }
+    .cm-live-math-block { display: block; width: 100%; box-sizing: border-box; margin: 1.5rem 0; overflow-x: auto; text-align: center; }
     .cm-live-math-error { color: #fca5a5; font-family: var(--font-code); font-size: .9em; }
   `;
   document.head.appendChild(style);
@@ -64,7 +85,9 @@ class MathWidget extends WidgetType {
   }
 
   toDOM() {
-    const wrap = document.createElement(this.displayMode ? 'div' : 'span');
+    // ViewPlugin이 제공하는 decoration은 CodeMirror의 block decoration이 될 수 없다.
+    // span을 CSS block으로 표시하면 같은 레이아웃을 유지하면서 해당 제약을 피한다.
+    const wrap = document.createElement('span');
     wrap.className = this.displayMode ? 'cm-live-math-block' : 'cm-live-math-inline';
     try {
       if (window.katex) {
@@ -98,22 +121,84 @@ function pushRange(ranges, decoration, from, to = from) {
   ranges.push(decoration.range(from, to));
 }
 
-function cursorStrictlyInside(cursor, from, to) {
-  // Closing delimiter를 막 입력한 순간(cursor === to)은 이미 수식 밖으로 본다.
-  // 그래서 space/Enter를 한 번 더 칠 필요 없이 즉시 렌더된다.
+function cursorTouching(selection, from, to) {
+  // 사용자가 드래그 또는 전체 선택(Ctrl+A) 중일 때: 수식이 선택 범위에 포함되면 원문을 노출하여 선택 영역이 온전히 보이도록 함
+  if (selection.from !== selection.to) {
+    return selection.from < to && selection.to > from;
+  }
+  // 단순 커서: 내부에서만 원문을 보인다. 닫는 구분자를 입력한 직후에는 즉시 렌더한다.
+  const cursor = selection.head;
   return cursor > from && cursor < to;
+}
+
+function findCodeRanges(text, offset = 0) {
+  const ranges = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const lineStart = cursor === 0 || text[cursor - 1] === '\n';
+    if (lineStart) {
+      const lineEnd = text.indexOf('\n', cursor);
+      const end = lineEnd === -1 ? text.length : lineEnd;
+      const opener = /^( {0,3})(`{3,}|~{3,})/.exec(text.slice(cursor, end));
+      if (opener) {
+        const marker = opener[2][0];
+        const minLength = opener[2].length;
+        let fenceEnd = lineEnd === -1 ? text.length : lineEnd + 1;
+        let search = fenceEnd;
+        while (search < text.length) {
+          const closeLineEnd = text.indexOf('\n', search);
+          const closeEnd = closeLineEnd === -1 ? text.length : closeLineEnd;
+          const closer = new RegExp(`^ {0,3}${marker}{${minLength},}[ \\t]*$`);
+          if (closer.test(text.slice(search, closeEnd))) {
+            fenceEnd = closeLineEnd === -1 ? text.length : closeLineEnd + 1;
+            break;
+          }
+          if (closeLineEnd === -1) {
+            fenceEnd = text.length;
+            break;
+          }
+          search = closeLineEnd + 1;
+          fenceEnd = search;
+        }
+        ranges.push({ from: offset + cursor, to: offset + fenceEnd, type: 'fence' });
+        cursor = fenceEnd;
+        continue;
+      }
+    }
+
+    if (text[cursor] === '`') {
+      let runEnd = cursor + 1;
+      while (text[runEnd] === '`') runEnd += 1;
+      const ticks = text.slice(cursor, runEnd);
+      const close = text.indexOf(ticks, runEnd);
+      if (close !== -1) {
+        const codeEnd = close + ticks.length;
+        ranges.push({ from: offset + cursor, to: offset + codeEnd, type: 'span' });
+        cursor = codeEnd;
+        continue;
+      }
+      cursor = runEnd;
+      continue;
+    }
+    cursor += 1;
+  }
+
+  return ranges;
 }
 
 function buildLiveDecorations(view) {
   const ranges = [];
   const doc = view.state.doc;
-  const cursor = view.state.selection.main.head;
+  const selection = view.state.selection.main;
+  const cursor = selection.head;
 
   // 화면 근처만 다시 계산한다. 큰 강의노트에서도 매 키 입력마다 전체 문서를 훑지 않는다.
   const visible = view.visibleRanges.length ? view.visibleRanges : [{ from: 0, to: doc.length }];
   const scanFrom = Math.max(0, visible[0].from - 5000);
   const scanTo = Math.min(doc.length, visible[visible.length - 1].to + 5000);
   const text = doc.sliceString(scanFrom, scanTo);
+  const codeRanges = findCodeRanges(text, scanFrom);
   const mathRanges = [];
 
   // Display math: $$ ... $$ . Closing $$ 뒤의 공백/개행은 수식 범위에 포함하지 않는다.
@@ -121,8 +206,9 @@ function buildLiveDecorations(view) {
   for (const match of text.matchAll(blockMath)) {
     const from = scanFrom + match.index;
     const to = from + match[0].length;
+    if (overlapsAny(from, to, codeRanges)) continue;
     mathRanges.push({ from, to });
-    if (cursorStrictlyInside(cursor, from, to)) continue;
+    if (cursorTouching(selection, from, to)) continue;
 
     const firstLine = doc.lineAt(from);
     const lastLine = doc.lineAt(Math.max(from, to - 1));
@@ -136,12 +222,12 @@ function buildLiveDecorations(view) {
     if (!before && !after && to === lastLine.to) {
       pushRange(
         ranges,
-        Decoration.replace({ widget: new MathWidget(tex, true), block: true }),
-        firstLine.from,
-        lastLine.to
+        Decoration.replace({ widget: new MathWidget(tex, true) }),
+        from,
+        to
       );
     } else {
-      pushRange(ranges, Decoration.replace({ widget: new MathWidget(tex, true) }), from, to);
+      pushRange(ranges, Decoration.replace({ widget: new MathWidget(tex, false) }), from, to);
     }
   }
 
@@ -151,9 +237,10 @@ function buildLiveDecorations(view) {
     const prefix = match[1] || '';
     const from = scanFrom + match.index + prefix.length;
     const to = from + match[0].length - prefix.length;
+    if (overlapsAny(from, to, codeRanges)) continue;
     if (overlapsAny(from, to, mathRanges)) continue;
     mathRanges.push({ from, to });
-    if (cursorStrictlyInside(cursor, from, to)) continue;
+    if (cursorTouching(selection, from, to)) continue;
     pushRange(ranges, Decoration.replace({ widget: new MathWidget(match[2].trim(), false) }), from, to);
   }
 
@@ -200,7 +287,9 @@ function buildLiveDecorations(view) {
       const from = scanFrom + match.index + prefix;
       const to = scanFrom + match.index + match[0].length;
       if (overlapsAny(from, to, mathRanges)) continue;
-      const cursorInside = cursor > from && cursor < to;
+      if (rule.cls !== 'cm-live-code' && overlapsAny(from, to, codeRanges)) continue;
+      if (rule.cls === 'cm-live-code' && codeRanges.some(range => range.type === 'fence' && from < range.to && to > range.from)) continue;
+      const cursorInside = cursorTouching(selection, from, to);
       const innerFrom = from + rule.open;
       const innerTo = to - rule.close;
       if (innerTo <= innerFrom) continue;
@@ -276,6 +365,9 @@ function installModeSwitch(view, liveCompartment) {
     view.dispatch({
       effects: liveCompartment.reconfigure(mode === 'live' ? livePreviewPlugin : [])
     });
+    document.dispatchEvent(new CustomEvent('sulog:editor-mode-change', {
+      detail: { mode }
+    }));
     requestAnimationFrame(() => view.requestMeasure());
   };
 
@@ -362,18 +454,15 @@ export async function installWriteEditor() {
   window.sulogWriteEditor = view;
   installModeSwitch(view, liveCompartment);
 
-  // 편집기 아래쪽 빈 공간도 클릭하면 입력 영역으로 동작한다.
-  // 실제 텍스트 위치를 얻을 수 없을 정도로 아래를 누르면 문서 끝으로 caret을 옮긴다.
+  // 편집기 아래쪽 빈 공간 클릭 시 포커스 및 문서 끝으로 caret 이동
   host.addEventListener('mousedown', event => {
-    if (event.button !== 0 || event.target.closest('.cm-gutterElement')) return;
-    requestAnimationFrame(() => {
-      if (!view.hasFocus) {
-        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
-        const anchor = pos == null ? view.state.doc.length : pos;
-        view.dispatch({ selection: { anchor }, scrollIntoView: true });
-        view.focus();
-      }
-    });
+    if (event.button !== 0 || event.target.closest('.cm-gutterElement') || event.target.closest('.cm-content')) return;
+    const rect = view.contentDOM.getBoundingClientRect();
+    if (event.clientY > rect.bottom) {
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      view.focus();
+    }
   });
 
   // 기존 toolbar의 익명 handler를 유지하기 위해 클릭 직전에 textarea selection을 CM selection과 맞춘다.
@@ -401,10 +490,12 @@ export async function installWriteEditor() {
       event.preventDefault();
       event.stopPropagation();
       view.dispatch({
-        selection: { anchor: 0, head: view.state.doc.length },
-        scrollIntoView: true
+        selection: { anchor: 0, head: view.state.doc.length }
       });
       view.focus();
+      try {
+        textarea.setSelectionRange(0, textarea.value.length);
+      } catch (_) {}
     } else if (key === 'b') {
       event.preventDefault();
       replaceSelection(view, '**', '**', 'bold text');

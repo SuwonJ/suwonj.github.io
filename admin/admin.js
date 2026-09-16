@@ -13,12 +13,13 @@ import {
 } from "../components/mastodon_oauth.js";
 
 import { parseMastodonStatus } from "../components/mastodon.js";
-import { ensureMarkdown } from "../components/content-dependencies.js";
+import { ensureMarkdown, normalizeMarkdownMath } from "../components/content-dependencies.js";
 
 let selectedCategory = "blog"; // "blog" | "research" | "tmp"
 let uploadedMediaIds = [];
 let autoSaveTimer = null;
 let previewDebounceTimer = null;
+let previewRenderVersion = 0;
 let currentEditingPost = null; // null: 신규 작성 모드, object: 수정 모드
 let postsCache = [];
 let activeFilter = "all";
@@ -125,7 +126,7 @@ function updatePublishButtonState() {
     if (btnIcon) btnIcon.innerText = "save";
     if (btnLabel) {
       if (selectedCategory === "tmp") {
-        btnLabel.innerText = "임시 저장 (#tmp)";
+        btnLabel.innerText = "저장";
       } else {
         btnLabel.innerText = "수정사항 저장";
       }
@@ -134,7 +135,7 @@ function updatePublishButtonState() {
     if (btnIcon) btnIcon.innerText = selectedCategory === "tmp" ? "visibility_off" : "send";
     if (btnLabel) {
       if (selectedCategory === "tmp") {
-        btnLabel.innerText = "임시 발행 (#tmp)";
+        btnLabel.innerText = "발행하기";
       } else {
         btnLabel.innerText = "발행하기";
       }
@@ -223,6 +224,7 @@ function setupEditorAndPreview() {
   titleInput.addEventListener("input", () => { triggerPreviewUpdate(); triggerAutoSave(); });
   tagsInput.addEventListener("input", () => { triggerPreviewUpdate(); triggerAutoSave(); });
   textarea.addEventListener("input", () => { triggerPreviewUpdate(); triggerAutoSave(); });
+  document.addEventListener("sulog:editor-mode-change", () => updatePreview());
 
   updatePreview();
 }
@@ -231,10 +233,11 @@ function triggerPreviewUpdate() {
   clearTimeout(previewDebounceTimer);
   previewDebounceTimer = setTimeout(() => {
     updatePreview();
-  }, 40);
+  }, 250);
 }
 
-async function updatePreview() {
+async function updatePreview({ force = false } = {}) {
+  const renderVersion = ++previewRenderVersion;
   const titleVal = document.getElementById("input-title").value.trim();
   const tagsVal = document.getElementById("input-tags").value.trim();
   const markdownVal = document.getElementById("editor-textarea").value;
@@ -254,21 +257,35 @@ async function updatePreview() {
 
   let tagHtml = tagsArray.map(t => `#${t.replace(/^#/, '')}`).join(" / ");
   if (selectedCategory === "tmp") {
-    tagHtml = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:0.15rem 0.5rem; border-radius:4px; font-weight:bold; margin-right:0.5rem; font-size:0.75rem;">[#tmp 임시 발행]</span> ` + tagHtml;
+    tagHtml = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:0.15rem 0.5rem; border-radius:4px; font-weight:bold; margin-right:0.5rem; font-size:0.75rem;">#tmp</span> ` + tagHtml;
   } else {
     tagHtml = `<span style="background:rgba(56,189,248,0.15); color:var(--accent-blue); padding:0.15rem 0.5rem; border-radius:4px; font-weight:bold; margin-right:0.5rem; font-size:0.75rem;">#${selectedCategory}</span> ` + tagHtml;
   }
   previewTags.innerHTML = tagHtml;
 
-  let text = markdownVal;
-  text = text.replace(/==([^=]+)==/g, "<mark>$1</mark>");
-  text = text.replace(/([^\n])\s*\$\$/g, "$1\n\n$$$$");
-  text = text.replace(/\$\$\s*([^\n])/g, "$$$$\n\n$1");
+  const charCount = markdownVal.length;
+  const wordCount = markdownVal.trim() ? markdownVal.trim().split(/\s+/).length : 0;
+  const readTime = Math.ceil(wordCount / 200);
+  metaInfo.innerText = `${wordCount} 단어 | ${charCount} 자 | 약 ${readTime}분 읽기`;
+
+  // write의 텍스트/라이브 모드에서는 우측 프리뷰가 보이지 않는다. 숨겨진 상태에서
+  // marked + KaTeX DOM을 계속 만들면 같은 문서를 두 번 렌더해 메모리와 CPU를 낭비한다.
+  const previewHidden = document.body.classList.contains("write-mode-source")
+    || document.body.classList.contains("write-mode-live");
+  if (previewHidden && !force) {
+    if (previewBody.childNodes.length) previewBody.replaceChildren();
+    return;
+  }
+
+  let text = normalizeMarkdownMath(markdownVal);
 
   try {
     if (typeof ensureMarkdown !== "undefined") {
       await ensureMarkdown(text);
     }
+
+    // 느린 CDN 로드 중 더 최신 입력이 들어왔으면 오래된 결과를 DOM에 쓰지 않는다.
+    if (renderVersion !== previewRenderVersion) return;
 
     if (typeof marked !== "undefined") {
       previewBody.innerHTML = marked.parse(text);
@@ -292,18 +309,19 @@ async function updatePreview() {
   } catch (err) {
     console.warn("Markdown/KaTeX parse fallback:", err);
     if (typeof marked !== "undefined") {
-      previewBody.innerHTML = marked.parse(text);
+      try {
+        previewBody.innerHTML = marked.parse(text);
+      } catch (_) {
+        previewBody.innerText = text;
+      }
     } else {
       previewBody.innerText = text;
     }
   }
 
-  // 글자 수 및 단어 수 통계
-  const charCount = markdownVal.length;
-  const wordCount = markdownVal.trim() ? markdownVal.trim().split(/\s+/).length : 0;
-  const readTime = Math.ceil(wordCount / 200);
-  metaInfo.innerText = `${wordCount} 단어 | ${charCount} 자 | 약 ${readTime}분 읽기`;
 }
+
+window.sulogRenderPreview = () => updatePreview({ force: true });
 
 function setupDragAndDrop() {
   const textarea = document.getElementById("editor-textarea");
@@ -434,7 +452,7 @@ function setupPublishing() {
 
         showToast(
           selectedCategory === "tmp"
-            ? "임시 발행되었습니다! (마스토돈에만 게시, 사이트 미노출)"
+            ? "발행되었습니다!"
             : "글이 성공적으로 발행되었습니다!", 
           "task_alt"
         );
@@ -622,7 +640,7 @@ function renderPostsList() {
 
     let catBadgeHtml = "";
     if (post.category === "tmp" || post.isDraft) {
-      catBadgeHtml = `<span class="badge-tag badge-draft">#tmp (임시)</span>`;
+      catBadgeHtml = `<span class="badge-tag badge-draft">#tmp</span>`;
     } else if (post.category === "research") {
       catBadgeHtml = `<span class="badge-tag badge-research">#research</span>`;
     } else {

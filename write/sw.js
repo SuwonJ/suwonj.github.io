@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sulog-write-v7';
+const CACHE_NAME = 'sulog-write-v13';
 const APP_SHELL = [
   '/write/',
   '/write/index.html',

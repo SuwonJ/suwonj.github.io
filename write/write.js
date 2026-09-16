@@ -4,6 +4,13 @@ const STORE_NAME = 'kv';
 const DRAFT_KEY = 'current-draft';
 const ACCOUNT_KEY = 'mastodon-account';
 const VISIBILITY_KEY = 'sulog_write_visibility';
+const EDITOR_MODE_KEY = 'sulog_write_editor_mode';
+const VALID_EDITOR_MODES = new Set(['split', 'source', 'live']);
+
+// admin.js의 첫 프리뷰 렌더보다 먼저 모드를 표시한다. 이전 모드가 live/source라면
+// 로그인 직후 숨겨진 우측 프리뷰를 통째로 만드는 일을 막는다.
+const initialEditorMode = localStorage.getItem(EDITOR_MODE_KEY) || 'split';
+document.body.classList.add(`write-mode-${VALID_EDITOR_MODES.has(initialEditorMode) ? initialEditorMode : 'split'}`);
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -69,6 +76,11 @@ function installVisibilityControl() {
   const select = row.querySelector('#write-visibility');
   select.value = localStorage.getItem(VISIBILITY_KEY) || 'public';
   select.addEventListener('change', () => localStorage.setItem(VISIBILITY_KEY, select.value));
+}
+
+function simplifyWriteUi() {
+  document.querySelectorAll('.toolbar .tool-btn[data-cmd], .toolbar .tool-divider').forEach(element => element.remove());
+  document.querySelector('.brand-logo .badge')?.remove();
 }
 
 function installFetchLayer() {
@@ -187,6 +199,7 @@ await registerServiceWorker();
 await restoreIndexedDbDraft();
 installFetchLayer();
 installVisibilityControl();
+simplifyWriteUi();
 
 // 기존 CMS 로직을 그대로 재사용한다. DOM은 /admin/index.html과 동일하다.
 // 중요: admin.js 내부 초기화가 끝나기 전에 CodeMirror를 붙이면 늦게 실행된 loadDraft()가

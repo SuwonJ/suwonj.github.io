@@ -14,31 +14,21 @@ function relabelPageCards() {
     if (!view || !/\/page\/\?id=/.test(view.getAttribute('href') || '')) return;
     const badge = card.querySelector('.badge-tag');
     if (badge) {
-      badge.textContent = '#page (링크)';
+      badge.textContent = '#page';
       badge.style.background = 'rgba(52,211,153,.12)';
       badge.style.color = '#a7f3d0';
     }
   });
 }
 
-function ensurePageHint() {
+function ensurePageMode() {
   const pageOption = document.querySelector('.cat-opt[data-cat="page"]');
   const visibility = document.getElementById('write-visibility');
   if (!pageOption || !visibility) return false;
 
-  let hint = document.getElementById('write-page-hint');
-  if (!hint) {
-    hint = document.createElement('span');
-    hint.id = 'write-page-hint';
-    hint.style.cssText = 'font-size:.72rem;color:#a7f3d0;margin-left:.35rem;display:none;';
-    hint.textContent = '링크 전용 · 사이트 목록 미노출';
-    visibility.insertAdjacentElement('afterend', hint);
-  }
-
   let previousActive = null;
   const syncMode = () => {
     const active = document.querySelector('.cat-opt.active')?.dataset.cat || null;
-    hint.style.display = active === 'page' ? 'inline' : 'none';
     if (active === 'page' && previousActive !== 'page') {
       setPageVisibilityDefault();
     }
@@ -67,11 +57,11 @@ function ensurePageHint() {
 }
 
 function install() {
-  if (ensurePageHint()) return;
+  if (ensurePageMode()) return;
   let tries = 0;
   const timer = setInterval(() => {
     tries += 1;
-    if (ensurePageHint() || tries > 40) clearInterval(timer);
+    if (ensurePageMode() || tries > 40) clearInterval(timer);
   }, 100);
 }
 

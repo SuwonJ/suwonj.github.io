@@ -1,7 +1,7 @@
 import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
 import { fetchPostsByTag, fetchPostById } from "../components/mastodon.js";
-import { ensureCodeHighlighting, ensureMarkdown } from "../components/content-dependencies.js";
+import { ensureCodeHighlighting, ensureMarkdown, normalizeMarkdownMath } from "../components/content-dependencies.js";
 import { commentsPlaceholder, renderComments } from "../components/comments.js";
 
 async function init() {
@@ -69,11 +69,7 @@ async function renderPost(id, container) {
     if (tagContainer) tagContainer.innerHTML = metaBarHtml;
 
     // 마크다운 파싱 및 렌더링
-    let markdownText = post.markdown || "";
-
-    markdownText = markdownText.replace(/==([^=]+)==/g, "<mark>$1</mark>");
-    markdownText = markdownText.replace(/([^\n])\s*\$\$/g, "$1\n\n$$$$");
-    markdownText = markdownText.replace(/\$\$\s*([^\n])/g, "$$$$\n\n$1");
+    let markdownText = normalizeMarkdownMath(post.markdown || "");
 
     await ensureMarkdown(markdownText);
     let parsedHtml = window.marked.parse(markdownText);
