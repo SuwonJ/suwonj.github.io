@@ -36,17 +36,22 @@ function splitLongPlainBlock(text, limit) {
   let rest = text.trim();
 
   while (rest.length > limit) {
-    const window = rest.slice(0, limit + 1);
+    const windowText = rest.slice(0, limit + 1);
     const minCut = Math.floor(limit * 0.45);
     const candidates = [
-      window.lastIndexOf('\n\n'),
-      window.lastIndexOf('\n'),
-      Math.max(window.lastIndexOf('. '), window.lastIndexOf('! '), window.lastIndexOf('? '), window.lastIndexOf('。 ')),
-      window.lastIndexOf(' ')
+      windowText.lastIndexOf('\n\n'),
+      windowText.lastIndexOf('\n'),
+      Math.max(
+        windowText.lastIndexOf('. '),
+        windowText.lastIndexOf('! '),
+        windowText.lastIndexOf('? '),
+        windowText.lastIndexOf('。 ')
+      ),
+      windowText.lastIndexOf(' ')
     ];
     let cut = candidates.find(index => index >= minCut);
     if (cut == null || cut < 1) cut = limit;
-    else if (window.slice(cut, cut + 2) === '. ' || window.slice(cut, cut + 2) === '! ' || window.slice(cut, cut + 2) === '? ') cut += 1;
+    else if (['. ', '! ', '? '].includes(windowText.slice(cut, cut + 2))) cut += 1;
 
     result.push(rest.slice(0, cut).trimEnd());
     rest = rest.slice(cut).trimStart();
@@ -163,7 +168,6 @@ export async function splitDocumentForMastodon(markdown, formattedTags = '') {
   const firstPass = fitBlocks(blocks, childLimit);
   if (!firstPass.length) return { chunks: [suffix.trim()], maxCharacters };
 
-  // 첫 status만 태그 공간이 필요하므로, 첫 chunk가 넘치면 첫 chunk만 다시 작은 한도로 쪼갠다.
   let chunks = [...firstPass];
   if (chunks[0].length > firstLimit) {
     const firstBlocks = tokenizeMarkdownBlocks(chunks.shift());
@@ -208,11 +212,35 @@ export async function fetchOwnThreadChain(rootId) {
   return chain;
 }
 
+async function postReplyStatus(statusText, inReplyToId) {
+  const token = getStoredToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+
+  const body = new URLSearchParams();
+  body.set('status', statusText);
+  body.set('in_reply_to_id', String(inReplyToId));
+
+  const res = await fetch(`${INSTANCE_URL}/api/v1/statuses`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: body.toString()
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Thread reply creation failed: ${errText}`);
+  }
+  return res.json();
+}
+
 async function createChildChain(chunks, rootId) {
   const created = [];
   let parentId = rootId;
   for (const chunk of chunks) {
-    const status = await postStatus({ statusText: chunk, inReplyToId: parentId });
+    const status = await postReplyStatus(chunk, parentId);
     created.push(status);
     parentId = status.id;
   }
@@ -256,12 +284,11 @@ export async function updateDocumentThread({ rootId, markdown, formattedTags, sp
   let parentId = common > 0 ? existingChildren[common - 1].id : rootId;
   const created = [];
   for (let i = common; i < desiredChildren.length; i += 1) {
-    const status = await postStatus({ statusText: desiredChildren[i], inReplyToId: parentId });
+    const status = await postReplyStatus(desiredChildren[i], parentId);
     created.push(status);
     parentId = status.id;
   }
 
-  // 뒤쪽부터 지워서 아직 필요한 reply chain을 건드리지 않는다.
   for (let i = existingChildren.length - 1; i >= desiredChildren.length; i -= 1) {
     await deleteStatus(existingChildren[i].id);
   }
