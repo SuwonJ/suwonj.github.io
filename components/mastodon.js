@@ -1,5 +1,6 @@
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 const ACCOUNT_ID = "116979319977947616";
+const THREAD_MARKER = "\u2063\u2063";
 const postsByTag = new Map();
 
 export async function fetchPostsByTag(tag) {
@@ -20,6 +21,15 @@ export async function fetchPostsByTag(tag) {
   }
 }
 
+function rawStatusText(status) {
+  const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
+  return doc.body.textContent || '';
+}
+
+function isDocumentChunk(status) {
+  return rawStatusText(status).trimStart().startsWith(THREAD_MARKER);
+}
+
 function statusContentToMarkdown(status, { removeTags = true } = {}) {
   const rawHtml = status?.content || "";
   const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
@@ -34,6 +44,8 @@ function statusContentToMarkdown(status, { removeTags = true } = {}) {
   });
 
   let plainText = doc.body.textContent || "";
+  plainText = plainText.split(THREAD_MARKER).join('');
+
   const txtDecoder = document.createElement("textarea");
   txtDecoder.innerHTML = plainText;
   let markdownText = txtDecoder.value.trim();
@@ -56,7 +68,7 @@ function buildDocumentThreadChain(rootStatus, descendants = []) {
       .filter(status => !used.has(String(status.id)))
       .filter(status => String(status.in_reply_to_id || '') === parentId)
       .filter(status => String(status.account?.id || '') === accountId)
-      .filter(status => !(status.spoiler_text || '').trim())
+      .filter(isDocumentChunk)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     if (!candidates.length) break;
