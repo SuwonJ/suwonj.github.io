@@ -9,13 +9,17 @@ import {
   updateStatus,
   deleteStatus,
   fetchMyStatuses,
-  fetchStatusWithThread,
+  fetchEditableStatus,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js?v=19";
+} from "../components/mastodon_oauth.js?v=20";
 
-import { parseMastodonStatus } from "../components/mastodon.js?v=19";
-import { ensureMarkdown, normalizeMarkdownMath } from "../components/content-dependencies.js?v=19";
+import { parseMastodonStatus } from "../components/mastodon.js?v=20";
+import { parsePreview, commitPreview } from '../assets/preview.js?v=20';
+import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=20';
+import { formatText } from '../components/editor-tools.js?v=20';
 
+const initialMode = localStorage.getItem('sulog_write_editor_mode') || 'split';
+document.body.classList.add(`write-mode-${['split', 'source', 'live', 'preview'].includes(initialMode) ? initialMode : 'split'}`);
 let selectedCategory = "blog"; // "blog" | "research" | "tmp"
 let uploadedMediaIds = [];
 let autoSaveTimer = null;
@@ -25,6 +29,20 @@ let currentEditingPost = null; // null: 신규 작성 모드, object: 수정 모
 let postsCache = [];
 let activeFilter = "all";
 let searchKeyword = "";
+let documentSession = 0;
+let openRequest = 0;
+let revision = 0;
+let dirty = false;
+let saveChain = Promise.resolve();
+let renderedMarkdown = null;
+let previewTask = Promise.resolve();
+let composing = false;
+const bodyValue = () => document.getElementById('editor-textarea').value;
+function changed() { revision++; dirty = true; previewRenderVersion++; }
+function replaceBody(text) {
+  document.getElementById('editor-textarea').value = text;
+  renderedMarkdown = null; previewRenderVersion++; revision++;
+}
 
 async function initAdminStudio() {
   // OAuth 콜백 처리
@@ -47,7 +65,33 @@ async function initAdminStudio() {
   setupSidebar();
 
   // 이전 임시저장(Draft) 복원
-  loadDraft();
+  await loadDraft({ resume: true });
+
+  document.addEventListener('sulog:save', async () => {
+    if (await saveDraft()) showToast('임시 로컬 저장되었습니다.', 'save');
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDraft(); });
+  window.addEventListener('pagehide', () => { saveDraft(); });
+  window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  try {
+    const { installWriteEditor } = await import('../assets/editor.js?v=20');
+    installWriteEditor();
+  } catch (error) {
+    console.error('Editor initialization failed:', error);
+    const textarea = document.getElementById('editor-textarea');
+    const text = window.sulogEditor?.value;
+    delete textarea.value;
+    if (text != null) textarea.value = text;
+    window.sulogWriteEditor?.destroy();
+    window.sulogEditor = null; window.sulogWriteEditor = null;
+    document.body.classList.add('sulog-cm-fallback');
+    document.body.classList.remove('write-mode-source', 'write-mode-live', 'write-mode-preview');
+    updatePreview();
+  }
+
+  document.getElementById('input-title').disabled = false;
+  document.getElementById('input-tags').disabled = false;
+  document.getElementById('editor-textarea').readOnly = false;
 
   // 로그인 상태라면 포스트 목록 로드
   const token = getStoredToken();
@@ -108,12 +152,15 @@ async function initAuth() {
 function setupCategorySelector() {
   const opts = document.querySelectorAll(".cat-opt");
   opts.forEach(opt => {
+    opt.setAttribute('role', 'button'); opt.tabIndex = 0;
+    opt.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); opt.click(); } });
     opt.addEventListener("click", (e) => {
       opts.forEach(o => o.classList.remove("active"));
-      e.target.classList.add("active");
-      selectedCategory = e.target.getAttribute("data-cat");
+      e.currentTarget.classList.add("active");
+      selectedCategory = e.currentTarget.getAttribute("data-cat");
       updatePublishButtonState();
-      updatePreview();
+      changed();
+      triggerPreviewUpdate();
       triggerAutoSave();
     });
   });
@@ -157,215 +204,102 @@ function setupToolbar() {
 }
 
 function applyFormat(textarea, cmd) {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const selectedText = textarea.value.substring(start, end);
-  let replacement = "";
-  let cursorOffset = 0;
-
-  switch (cmd) {
-    case "bold":
-      replacement = `**${selectedText || "bold text"}**`;
-      cursorOffset = selectedText ? replacement.length : 2;
-      break;
-    case "italic":
-      replacement = `*${selectedText || "italic text"}*`;
-      cursorOffset = selectedText ? replacement.length : 1;
-      break;
-    case "strike":
-      replacement = `~~${selectedText || "strikethrough"}~~`;
-      cursorOffset = selectedText ? replacement.length : 2;
-      break;
-    case "highlight":
-      replacement = `==${selectedText || "highlight text"}==`;
-      cursorOffset = selectedText ? replacement.length : 2;
-      break;
-    case "h1":
-      replacement = `# ${selectedText || "Heading 1"}\n`;
-      cursorOffset = replacement.length;
-      break;
-    case "h2":
-      replacement = `## ${selectedText || "Heading 2"}\n`;
-      cursorOffset = replacement.length;
-      break;
-    case "h3":
-      replacement = `### ${selectedText || "Heading 3"}\n`;
-      cursorOffset = replacement.length;
-      break;
-    case "code":
-      replacement = `\n\`\`\`python\n${selectedText || "# code here"}\n\`\`\`\n`;
-      cursorOffset = replacement.length;
-      break;
-    case "quote":
-      replacement = `\n> ${selectedText || "quote text"}\n`;
-      cursorOffset = replacement.length;
-      break;
-    case "math":
-      replacement = `\n$$\n${selectedText || "f(x) = \\int x dx"}\n$$\n`;
-      cursorOffset = replacement.length;
-      break;
-    case "link":
-      replacement = `[${selectedText || "link text"}](https://example.com)`;
-      cursorOffset = replacement.length;
-      break;
-  }
-
-  textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+  if (window.sulogEditor) return window.sulogEditor.format(cmd);
+  const start = textarea.selectionStart, end = textarea.selectionEnd;
+  const format = formatText(cmd, textarea.value.slice(start, end));
+  if (!format) return;
   textarea.focus();
-  textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
-  updatePreview();
-  triggerAutoSave();
+  // Native insertText preserves the browser undo stack. setRangeText is the fallback.
+  if (!document.execCommand('insertText', false, format.insert)) {
+    textarea.setRangeText(format.insert, start, end, 'end');
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  textarea.setSelectionRange(start + format.from, start + format.to);
 }
 
 function setupEditorAndPreview() {
-  const titleInput = document.getElementById("input-title");
-  const tagsInput = document.getElementById("input-tags");
-  const textarea = document.getElementById("editor-textarea");
-
-  titleInput.addEventListener("input", () => { triggerPreviewUpdate(); triggerAutoSave(); });
-  tagsInput.addEventListener("input", () => { triggerPreviewUpdate(); triggerAutoSave(); });
-  textarea.addEventListener("input", () => { triggerPreviewUpdate(); triggerAutoSave(); });
-  document.addEventListener("sulog:editor-mode-change", () => updatePreview());
-
+  const title = document.getElementById('input-title'), tags = document.getElementById('input-tags');
+  const textarea = document.getElementById('editor-textarea');
+  for (const input of [title, tags]) input.addEventListener('input', () => { changed(); updatePreviewMeta(); triggerPreviewUpdate(); triggerAutoSave(); });
+  textarea.addEventListener('input', () => { changed(); triggerPreviewUpdate(); triggerAutoSave(); });
+  textarea.addEventListener('compositionstart', () => { composing = true; clearTimeout(previewDebounceTimer); });
+  textarea.addEventListener('compositionend', () => { composing = false; triggerPreviewUpdate(); });
+  document.addEventListener('sulog:composition-end', () => { triggerPreviewUpdate(); triggerAutoSave(); });
+  document.addEventListener('sulog:editor-mode-change', () => { previewRenderVersion++; triggerPreviewUpdate(); });
   updatePreview();
 }
-
+function updatePreviewMeta() {
+  const title = document.getElementById('input-title').value.trim();
+  const titleEl = document.getElementById('preview-title');
+  titleEl.textContent = title || '제목 프리뷰...'; titleEl.style.color = title ? 'var(--text-main)' : 'var(--text-muted)';
+  const tags = document.getElementById('input-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  document.getElementById('preview-tags').textContent = [selectedCategory, ...tags].map(t => '#' + t.replace(/^#/, '')).join(' / ');
+}
 function triggerPreviewUpdate() {
   clearTimeout(previewDebounceTimer);
-  previewDebounceTimer = setTimeout(() => {
-    updatePreview();
-  }, 250);
+  if (composing || window.sulogWriteEditor?.composing) return;
+  const length = window.sulogEditor?.length ?? document.getElementById('editor-textarea').textLength;
+  previewDebounceTimer = setTimeout(() => { updatePreview(); }, length > 50000 ? 650 : 300);
 }
-
 async function updatePreview({ force = false } = {}) {
-  const renderVersion = ++previewRenderVersion;
-  const titleVal = document.getElementById("input-title").value.trim();
-  const tagsVal = document.getElementById("input-tags").value.trim();
-  const markdownVal = document.getElementById("editor-textarea").value;
-
-  const previewTitle = document.getElementById("preview-title");
-  const previewTags = document.getElementById("preview-tags");
-  const previewBody = document.getElementById("preview-markdown-content");
-  const metaInfo = document.getElementById("preview-meta-info");
-
-  previewTitle.innerText = titleVal || "제목 프리뷰...";
-  previewTitle.style.color = titleVal ? "var(--text-main)" : "var(--text-muted)";
-
-  let tagsArray = [];
-  if (tagsVal) {
-    tagsArray = tagsVal.split(",").map(t => t.trim()).filter(t => t.length > 0);
-  }
-
-  let tagHtml = tagsArray.map(t => `#${t.replace(/^#/, '')}`).join(" / ");
-  if (selectedCategory === "tmp") {
-    tagHtml = `<span style="background:rgba(245,158,11,0.2); color:#fbbf24; padding:0.15rem 0.5rem; border-radius:4px; font-weight:bold; margin-right:0.5rem; font-size:0.75rem;">#tmp</span> ` + tagHtml;
-  } else {
-    tagHtml = `<span style="background:rgba(56,189,248,0.15); color:var(--accent-blue); padding:0.15rem 0.5rem; border-radius:4px; font-weight:bold; margin-right:0.5rem; font-size:0.75rem;">#${selectedCategory}</span> ` + tagHtml;
-  }
-  previewTags.innerHTML = tagHtml;
-
-  const charCount = markdownVal.length;
-  const wordCount = markdownVal.trim() ? markdownVal.trim().split(/\s+/).length : 0;
-  const readTime = Math.ceil(wordCount / 200);
-  metaInfo.innerText = `${wordCount} 단어 | ${charCount} 자 | 약 ${readTime}분 읽기`;
-
-  // write의 텍스트/라이브 모드에서는 우측 프리뷰가 보이지 않는다. 숨겨진 상태에서
-  // marked + KaTeX DOM을 계속 만들면 같은 문서를 두 번 렌더해 메모리와 CPU를 낭비한다.
-  const previewHidden = document.body.classList.contains("write-mode-source")
-    || document.body.classList.contains("write-mode-live");
-  if (previewHidden && !force) {
-    if (previewBody.childNodes.length) previewBody.replaceChildren();
-    return;
-  }
-
-  let text = normalizeMarkdownMath(markdownVal);
-
+  updatePreviewMeta();
+  const hidden = document.body.classList.contains('write-mode-source') || document.body.classList.contains('write-mode-live');
+  const root = document.getElementById('preview-markdown-content');
+  if (hidden && !force) { root.replaceChildren(); renderedMarkdown = null; document.getElementById('preview-meta-info').textContent = `${window.sulogEditor?.length ?? document.getElementById('editor-textarea').textLength} 자`; return; }
+  const version = previewRenderVersion, text = bodyValue();
+  if (text === renderedMarkdown && !force) return;
+  const run = async () => {
+    if (version !== previewRenderVersion) return false;
+    const html = await parsePreview(text);
+    if (version !== previewRenderVersion) return false;
+    const complete = await commitPreview(root, html, () => version === previewRenderVersion, { force });
+    if (complete) {
+      renderedMarkdown = text;
+      const words = text.match(/\S+/g)?.length || 0;
+      document.getElementById('preview-meta-info').textContent = `${words} 단어 | ${text.length} 자 | 약 ${Math.ceil(words / 200)}분 읽기`;
+    }
+    return complete;
+  };
+  previewTask = previewTask.catch(() => {}).then(run);
   try {
-    if (typeof ensureMarkdown !== "undefined") {
-      await ensureMarkdown(text);
-    }
-
-    // 느린 CDN 로드 중 더 최신 입력이 들어왔으면 오래된 결과를 DOM에 쓰지 않는다.
-    if (renderVersion !== previewRenderVersion) return;
-
-    if (typeof marked !== "undefined") {
-      previewBody.innerHTML = marked.parse(text);
-      previewBody.querySelectorAll('pre code').forEach((block) => {
-        const pre = block.parentElement;
-        const langMatch = block.className.match(/language-(\w+)/);
-        if (langMatch && langMatch[1]) {
-          pre.setAttribute('data-lang', langMatch[1].toUpperCase());
-        }
-        if (typeof hljs !== 'undefined') hljs.highlightElement(block);
-      });
-      previewBody.querySelectorAll('table').forEach(table => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'table-wrapper';
-        table.parentNode.insertBefore(wrapper, table);
-        wrapper.appendChild(table);
-      });
-    } else {
-      previewBody.innerText = text;
-    }
-  } catch (err) {
-    console.warn("Markdown/KaTeX parse fallback:", err);
-    if (typeof marked !== "undefined") {
-      try {
-        previewBody.innerHTML = marked.parse(text);
-      } catch (_) {
-        previewBody.innerText = text;
-      }
-    } else {
-      previewBody.innerText = text;
-    }
+    const complete = await previewTask;
+    if (force && !complete) throw new Error('출력 준비 중 본문이 변경되었습니다. 다시 시도해 주세요.');
+  } catch (error) {
+    if (force) throw error;
+    if (version === previewRenderVersion) document.getElementById('preview-meta-info').textContent = '미리보기 실패 · 보기 모드를 전환해 다시 시도하세요';
+    console.error('Preview failed:', error);
   }
-
 }
-
 window.sulogRenderPreview = () => updatePreview({ force: true });
 
 function setupDragAndDrop() {
-  const textarea = document.getElementById("editor-textarea");
-  const overlay = document.getElementById("drag-overlay");
-
-  textarea.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    overlay.classList.add("active");
+  const textarea = document.getElementById('editor-textarea'), overlay = document.getElementById('drag-overlay');
+  textarea.addEventListener('dragover', event => { if (!event.dataTransfer?.types.includes('Files')) return; event.preventDefault(); overlay.classList.add('active'); });
+  textarea.addEventListener('dragleave', () => overlay.classList.remove('active'));
+  textarea.addEventListener('drop', event => {
+    overlay.classList.remove('active'); if (!event.dataTransfer?.files.length) return;
+    event.preventDefault(); uploadFiles(Array.from(event.dataTransfer.files));
   });
-
-  textarea.addEventListener("dragleave", (e) => {
-    if (e.relatedTarget !== overlay) {
-      overlay.classList.remove("active");
-    }
-  });
-
-  textarea.addEventListener("drop", async (e) => {
-    e.preventDefault();
-    overlay.classList.remove("active");
-
-    const files = e.dataTransfer.files;
-    if (!files || files.length === 0) return;
-
-    showToast("파일을 업로드하는 중입니다...", "cloud_upload");
-
+  document.addEventListener('sulog:media-drop', event => uploadFiles(event.detail.files, event.detail.position));
+  async function uploadFiles(files, position) {
+    const session = documentSession;
+    let offset = position ?? textarea.selectionStart;
+    const bookmark = window.sulogEditor?.bookmark(position);
+    showToast('파일을 업로드하는 중입니다...', 'cloud_upload');
     try {
       for (const file of files) {
-        const mediaData = await uploadMediaFile(file);
-        uploadedMediaIds.push(mediaData.id);
-
-        const insertText = mediaData.type === 'image' 
-          ? `\n![${file.name}](${mediaData.url})\n`
-          : `\n[첨부파일: ${file.name}](${mediaData.url})\n`;
-
-        textarea.value += insertText;
+        const media = await uploadMediaFile(file);
+        if (session !== documentSession) { showToast('이전 문서의 업로드가 완료되었습니다. 현재 글에는 삽입하지 않았습니다.', 'info'); return; }
+        const name = file.name.replace(/[\[\]\(\)\\]/g, '\\$&');
+        const text = media.type === 'image' ? `\n![${name}](${media.url})\n` : `\n[첨부파일: ${name}](${media.url})\n`;
+        uploadedMediaIds.push(media.id);
+        if (bookmark) bookmark.insert(text);
+        else { textarea.setRangeText(text, Math.min(offset, textarea.value.length), Math.min(offset, textarea.value.length), 'end'); offset = textarea.selectionEnd; textarea.dispatchEvent(new Event('input', { bubbles: true })); }
       }
-      showToast("미디어가 성공적으로 업로드되었습니다!", "check_circle");
-      updatePreview();
-      triggerAutoSave();
-    } catch (err) {
-      showToast(`업로드 실패: ${err.message}`, "error");
-    }
-  });
+      showToast('미디어가 업로드되었습니다.', 'check_circle');
+    } catch (error) { showToast(`업로드 실패: ${error.message}`, 'error'); }
+    finally { bookmark?.release(); }
+  }
 }
 
 function setupPublishing() {
@@ -378,6 +312,8 @@ function setupPublishing() {
       return;
     }
 
+    if (btnPublish.disabled) return;
+    const inputSession = documentSession, inputRevision = revision;
     const titleVal = document.getElementById("input-title").value.trim();
     const tagsVal = document.getElementById("input-tags").value.trim();
     const markdownVal = document.getElementById("editor-textarea").value.trim();
@@ -405,22 +341,32 @@ function setupPublishing() {
       }
     }
 
+    btnPublish.disabled = true;
+    if (!(await saveDraft()) || inputSession !== documentSession || inputRevision !== revision) {
+      btnPublish.disabled = false;
+      if (inputSession !== documentSession || inputRevision !== revision) showToast('본문이 변경되었습니다. 현재 글을 확인하고 다시 발행해 주세요.', 'info');
+      return;
+    }
+    const publishingSession = documentSession, publishingRevision = revision;
+    const publishingPost = currentEditingPost;
+    const publishingMedia = [...uploadedMediaIds];
+    const publishingCategory = selectedCategory;
     const fullStatusText = `${markdownVal}\n\n${formattedTags}`;
 
     btnPublish.disabled = true;
 
     try {
-      if (currentEditingPost) {
+      if (publishingPost) {
         // 기존 포스트 수정 모드
         showToast("마스토돈에서 글을 수정하는 중...", "sync");
 
         const updated = await updateStatus({
-          id: currentEditingPost.id,
+          id: publishingPost.id,
           statusText: fullStatusText,
           spoilerText: titleVal,
-          mediaIds: uploadedMediaIds,
-          existingThread: currentEditingPost.threadChecked
-            ? (currentEditingPost.threadChunks || [])
+          mediaIds: publishingMedia,
+          existingThread: publishingPost.threadChecked
+            ? (publishingPost.threadChunks || [])
             : null
         });
 
@@ -433,6 +379,8 @@ function setupPublishing() {
         // 캐시 업데이트 및 목록 갱신
         await loadPostsList();
 
+        if (publishingSession !== documentSession) return;
+        if (publishingRevision === revision) { clearTimeout(autoSaveTimer); await saveChain; await removeDraft(publishingPost.id); if (publishingSession === documentSession && publishingRevision === revision) { dirty = false; document.getElementById('status-draft').textContent = '수정사항 서버 저장됨'; } }
         // 수정 상태 갱신
         const parsed = parseMastodonStatus(updated);
         currentEditingPost = {
@@ -456,7 +404,7 @@ function setupPublishing() {
         const result = await postStatus({
           statusText: fullStatusText,
           spoilerText: titleVal,
-          mediaIds: uploadedMediaIds
+          mediaIds: publishingMedia
         });
 
         showToast(
@@ -467,17 +415,27 @@ function setupPublishing() {
         );
         
         // 임시저장 데이터 초기화
-        clearDraft();
+        const cleared = publishingSession === documentSession && publishingRevision === revision && await clearDraft(publishingSession, publishingRevision);
+        if (!cleared && publishingSession === documentSession) {
+          currentEditingPost = { ...parseMastodonStatus(result), rawStatus: result, threadChunks: result.sulog_thread_chunks || [], threadChecked: true };
+          document.getElementById('edit-mode-banner').style.display = 'flex';
+          document.getElementById('editing-post-title').textContent = titleVal;
+          document.getElementById('editing-post-id').textContent = result.id;
+          document.getElementById('btn-new-post').style.display = 'inline-flex';
+          dirty = true; await saveDraft(); await removeDraft(null); updatePublishButtonState();
+          showToast('발행 중 추가한 변경사항을 수정 초안에 보존했습니다.', 'info');
+        }
 
         // 목록 새로고침
         await loadPostsList();
 
         setTimeout(() => {
-          if (selectedCategory === "tmp") {
+          if (publishingSession !== documentSession || dirty) return;
+          if (publishingCategory === "tmp") {
             showToast("임시 글(#tmp)이 목록에 추가되었습니다. 나중에 태그를 바꿔 게시할 수 있습니다.", "info");
           } else {
             if (confirm("글이 성공적으로 발행되었습니다! 발행된 페이지로 이동하시겠습니까?")) {
-              window.location.href = `/${selectedCategory}/?id=${result.id}`;
+              window.location.href = `/${publishingCategory}/?id=${result.id}`;
             }
           }
         }, 500);
@@ -504,7 +462,7 @@ function setupSidebar() {
 
   // 사이드바 기본 열림/닫힘 상태 복원 (기본값: 열림)
   const savedState = localStorage.getItem("sulog_admin_sidebar_open");
-  if (savedState === "false") {
+  if (savedState === "false" || (savedState == null && matchMedia("(max-width: 1000px)").matches)) {
     sidebar.classList.add("collapsed");
     if (iconToggle) iconToggle.innerText = "menu";
   }
@@ -717,31 +675,22 @@ function renderPostsList() {
 }
 
 async function startEditingPost(post) {
-  if (post.repliesCount > 0 && !post.threadChecked) {
-    if (post.threadLoading) return;
-    post.threadLoading = true;
-    showToast("본문을 불러오는 중...", "sync");
-    try {
-      const rawStatus = await fetchStatusWithThread(post.rawStatus);
-      const parsed = parseMastodonStatus(rawStatus);
-      Object.assign(post, parsed, {
-        rawStatus,
-        threadChunks: rawStatus.sulog_thread_chunks || [],
-        threadChecked: true,
-        threadLoading: false
-      });
-    } catch (error) {
-      post.threadLoading = false;
-      showToast(`본문을 불러오지 못했습니다: ${error.message}`, "error");
-      return;
-    }
-  }
-
+  const request = ++openRequest;
+  if (!(await flushBeforeSwitch()) || request !== openRequest) return;
+  try {
+    const rawStatus = await fetchEditableStatus(post.rawStatus);
+    if (request !== openRequest) return;
+    Object.assign(post, parseMastodonStatus(rawStatus), { rawStatus,
+      threadChunks: rawStatus.sulog_thread_chunks || [], threadChecked: true });
+  } catch (error) { if (request === openRequest) showToast(`본문을 불러오지 못했습니다: ${error.message}`, 'error'); return; }
+  const draft = await readDraft(post.id).catch(() => null);
+  if (request !== openRequest || !(await flushBeforeSwitch()) || request !== openRequest) return;
+  documentSession++;
   currentEditingPost = post;
 
   // 제목, 본문, 태그 채우기
   document.getElementById("input-title").value = post.title || "";
-  document.getElementById("editor-textarea").value = post.markdown || "";
+  replaceBody(post.markdown || "");
   document.getElementById("input-tags").value = (post.tags || []).join(", ");
 
   // 카테고리 동기화 (blog, research, tmp)
@@ -767,6 +716,10 @@ async function startEditingPost(post) {
   // 버튼 라벨 갱신
   updatePublishButtonState();
 
+  if (draft) applyDraft(draft);
+  if (matchMedia('(max-width: 1000px)').matches) { document.getElementById('posts-sidebar').classList.add('collapsed'); document.getElementById('icon-toggle-sidebar').textContent = 'menu'; }
+  dirty = Boolean(draft);
+  await dbSet('active-draft', post.id).catch(() => {});
   // 프리뷰 갱신
   updatePreview();
 
@@ -783,7 +736,12 @@ async function startEditingPost(post) {
   showToast(`'${post.title}' 포스트를 수정 모드로 불러왔습니다.${threadMessage}`, "edit_note");
 }
 
-function startNewPost() {
+async function startNewPost({ skipSave = false } = {}) {
+  const request = ++openRequest;
+  if (!skipSave && (!(await flushBeforeSwitch()) || request !== openRequest)) return;
+  const draft = await readDraft(null).catch(() => null);
+  if (request !== openRequest || (!skipSave && !(await flushBeforeSwitch())) || request !== openRequest) return;
+  documentSession++;
   currentEditingPost = null;
 
   // 배너 및 새 글 버튼 숨김
@@ -794,7 +752,7 @@ function startNewPost() {
 
   // 폼 비우기
   document.getElementById("input-title").value = "";
-  document.getElementById("editor-textarea").value = "";
+  replaceBody("");
   document.getElementById("input-tags").value = "";
   
   uploadedMediaIds = [];
@@ -809,7 +767,9 @@ function startNewPost() {
   updatePublishButtonState();
 
   // 이전 드래프트 복원 시도
-  loadDraft();
+  dirty = false;
+  if (draft) applyDraft(draft);
+  await dbSet("active-draft", null).catch(() => {});
 
   updatePreview();
   renderPostsList();
@@ -831,7 +791,9 @@ async function deletePost(postId, postTitle) {
 
     // 만약 현재 수정 중이던 글이 삭제된 경우 신규 모드로 전환
     if (currentEditingPost && currentEditingPost.id === postId) {
-      startNewPost();
+      dirty = false;
+      await removeDraft(postId);
+      await startNewPost({ skipSave: true });
     }
 
     // 목록 갱신
@@ -856,80 +818,76 @@ function setupShortcuts() {
         applyFormat(textarea, "link");
       } else if (e.key === "s" || e.key === "S") {
         e.preventDefault();
-        saveDraft();
-        showToast("임시 로컬 저장되었습니다.", "save");
+        saveDraft().then(ok => { if (ok) showToast('임시 로컬 저장되었습니다.', 'save'); });
       }
     }
   });
 }
 
 function triggerAutoSave() {
-  if (currentEditingPost) {
-    document.getElementById("status-draft").innerText = `수정 중: ${currentEditingPost.title}`;
-    return;
-  }
-
   clearTimeout(autoSaveTimer);
-  document.getElementById("status-draft").innerText = "저장 중...";
-  autoSaveTimer = setTimeout(() => {
-    saveDraft();
-  }, 1000);
+  document.getElementById('status-draft').textContent = '변경사항 저장 대기 중...';
+  autoSaveTimer = setTimeout(() => saveDraft(), 1000);
 }
-
-function saveDraft() {
-  if (currentEditingPost) return;
-
-  const draftData = {
-    category: selectedCategory,
-    title: document.getElementById("input-title").value,
-    tags: document.getElementById("input-tags").value,
-    markdown: document.getElementById("editor-textarea").value,
-    updatedAt: new Date().toLocaleTimeString()
-  };
-  localStorage.setItem("sulog_admin_draft", JSON.stringify(draftData));
-  document.getElementById("status-draft").innerText = `자동 저장됨 (${draftData.updatedAt})`;
-}
-
-function loadDraft() {
-  if (currentEditingPost) return;
-
-  const saved = localStorage.getItem("sulog_admin_draft");
-  if (!saved) return;
-
-  try {
-    const draft = JSON.parse(saved);
-    if (draft.title || draft.markdown) {
-      document.getElementById("input-title").value = draft.title || "";
-      document.getElementById("input-tags").value = draft.tags || "";
-      document.getElementById("editor-textarea").value = draft.markdown || "";
-      
-      if (draft.category) {
-        selectedCategory = draft.category;
-        document.querySelectorAll(".cat-opt").forEach(opt => {
-          opt.classList.toggle("active", opt.getAttribute("data-cat") === draft.category);
-        });
-      }
-
-      updatePublishButtonState();
-      updatePreview();
-      document.getElementById("status-draft").innerText = `임시 저장 복원됨 (${draft.updatedAt || ''})`;
-    }
-  } catch (e) {}
-}
-
-function clearDraft() {
-  localStorage.removeItem("sulog_admin_draft");
-  document.getElementById("input-title").value = "";
-  document.getElementById("input-tags").value = "";
-  document.getElementById("editor-textarea").value = "";
-  selectedCategory = "blog";
-  document.querySelectorAll(".cat-opt").forEach(opt => {
-    opt.classList.toggle("active", opt.getAttribute("data-cat") === "blog");
+async function saveDraft() {
+  clearTimeout(autoSaveTimer);
+  if (!dirty) return true;
+  const session = documentSession, version = revision, id = currentEditingPost?.id || null;
+  const draft = { id, category: selectedCategory, title: document.getElementById('input-title').value,
+    tags: document.getElementById('input-tags').value, markdown: bodyValue(), mediaIds: [...uploadedMediaIds],
+    editingPost: currentEditingPost ? { id, title: currentEditingPost.title, category: selectedCategory, threadChecked: false } : null,
+    savedAt: Date.now(), revision: version };
+  saveChain = saveChain.catch(() => {}).then(async () => {
+    await dbSet(draftKey(id), draft); await dbSet('active-draft', id);
   });
-  uploadedMediaIds = [];
+  try {
+    await saveChain;
+    if (session === documentSession && version === revision) {
+      dirty = false;
+      document.getElementById('status-draft').textContent = `로컬 저장됨 (${new Date(draft.savedAt).toLocaleTimeString()})`;
+    }
+    return true;
+  } catch (error) {
+    if (session === documentSession) document.getElementById('status-draft').textContent = '저장 실패 · 변경사항을 보존하고 다시 시도하세요';
+    showToast(`초안 저장 실패: ${error.message}`, 'error'); return false;
+  }
+}
+async function flushBeforeSwitch() { while (dirty) { if (!(await saveDraft())) return false; } return true; }
+function applyDraft(draft) {
+  document.getElementById('input-title').value = draft.title || '';
+  document.getElementById('input-tags').value = draft.tags || '';
+  replaceBody(draft.markdown || '');
+  uploadedMediaIds = draft.mediaIds || uploadedMediaIds;
+  selectedCategory = draft.category || 'blog';
+  document.querySelectorAll('.cat-opt').forEach(opt => opt.classList.toggle('active', opt.dataset.cat === selectedCategory));
   updatePublishButtonState();
-  updatePreview();
-  document.getElementById("status-draft").innerText = "자동 저장 준비됨";
+}
+async function loadDraft({ resume = false } = {}) {
+  try {
+    const id = resume ? await dbGet('active-draft') : null;
+    const draft = await readDraft(id);
+    if (!draft) return;
+    currentEditingPost = draft.editingPost || null;
+    applyDraft(draft); dirty = false;
+    if (currentEditingPost) {
+      document.getElementById('edit-mode-banner').style.display = 'flex';
+      document.getElementById('editing-post-title').textContent = draft.title || '무제 포스트';
+      document.getElementById('editing-post-id').textContent = currentEditingPost.id;
+      document.getElementById('btn-new-post').style.display = 'inline-flex';
+    }
+    updatePreview();
+    document.getElementById('status-draft').textContent = '로컬 초안 복원됨';
+  } catch (error) { showToast(`초안 복원 실패: ${error.message}`, 'error'); }
+}
+async function clearDraft(expectedSession = documentSession, expectedRevision = revision) {
+  clearTimeout(autoSaveTimer); await saveChain.catch(() => {}); await removeDraft(currentEditingPost?.id);
+  if (expectedSession !== documentSession || expectedRevision !== revision) return false;
+  dirty = false; documentSession++;
+  document.getElementById('input-title').value = '';
+  document.getElementById('input-tags').value = ''; replaceBody(''); uploadedMediaIds = [];
+  updatePublishButtonState(); updatePreview();
+  document.getElementById('status-draft').textContent = '자동 저장 준비됨';
+  return true;
 }
 
 function showToast(message, iconName = "info") {
@@ -955,4 +913,4 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-initAdminStudio();
+export const adminReady = initAdminStudio();

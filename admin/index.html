@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sulog Studio - CMS Dashboard</title>
-    
+
     <!-- Modern Typography & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,13 +12,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Google+Sans+Code:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
 
-    <!-- KaTeX & Highlight.js CDN -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/tokyo-night-dark.min.css">
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <!-- Locally bundled rendering assets -->
+    <link rel="stylesheet" href="/assets/vendor/katex.min.css">
+    <link rel="stylesheet" href="/assets/vendor/highlight.min.css">
 
     <style>
         @font-face {
@@ -54,6 +50,7 @@
             color: var(--text-main);
             font-family: var(--font-sans);
             height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -114,6 +111,9 @@
             border-radius: 50%;
         }
 
+        body.sulog-cm-fallback #cm-editor-host { display: none !important; }
+        body.sulog-cm-fallback #editor-textarea { display: block !important; }
+        [hidden] { display: none !important; }
         .btn {
             display: inline-flex;
             align-items: center;
@@ -595,6 +595,7 @@
 
         /* Textarea Editor (고딕 폰트 적용) */
         .editor-container {
+            min-height: 0;
             flex: 1;
             position: relative;
             display: flex;
@@ -618,6 +619,7 @@
 
         /* Drop Overlay */
         .drag-overlay {
+            pointer-events: none;
             position: absolute;
             inset: 0;
             background: rgba(56, 189, 248, 0.1);
@@ -683,9 +685,9 @@
             color: #8a8a8a;
         }
 
-        .preview-body h1, 
-        .preview-body h2, 
-        .preview-body h3, 
+        .preview-body h1,
+        .preview-body h2,
+        .preview-body h3,
         .preview-body h4 {
             font-family: var(--font-gothic);
             color: #ffffff !important;
@@ -888,6 +890,22 @@
             transform: translateY(0);
             opacity: 1;
         }
+        @media (max-width: 1000px) {
+            body.write-mode-split .workspace > .pane:last-child,
+            body:not(.write-mode-source):not(.write-mode-live) .workspace > .pane:last-child { display: none; }
+            .posts-sidebar { position: absolute; inset: 0 auto 0 0; width: min(320px, 85vw); }
+            .posts-sidebar.collapsed { width: 0; }
+            .pane { min-width: 0; }
+            .config-bar { padding: .6rem .8rem; }
+            .input-title { min-width: 0; width: 100%; font-size: 1.2rem; }
+            .brand-logo .badge, .app-header .btn-text { display: none; }
+            .header-actions { gap: .3rem; }
+            #btn-new-post, .app-header .user-chip > span:not(#btn-logout), .brand-logo { display: none; }
+            .app-header .btn { padding: .4rem .5rem; }
+            .app-header { gap: .4rem; padding: 0 .6rem; }
+        }
+        #preview-markdown-content > * { content-visibility: auto; contain-intrinsic-size: auto 100px; }
+        @media print { #preview-markdown-content > * { content-visibility: visible; } }
     </style>
 </head>
 <body>
@@ -975,8 +993,8 @@
 
             <div class="config-bar">
                 <div class="input-row">
-                    <input type="text" id="input-title" class="input-title" placeholder="제목을 입력하세요..." autofocus>
-                    
+                    <input type="text" aria-label="글 제목" id="input-title" class="input-title" disabled placeholder="제목을 입력하세요..." autofocus>
+
                     <div class="cat-selector">
                         <div class="cat-opt active" data-cat="blog">#blog</div>
                         <div class="cat-opt" data-cat="research">#research</div>
@@ -984,7 +1002,7 @@
                     </div>
                 </div>
 
-                <input type="text" id="input-tags" class="input-tags" placeholder="주제 태그 (쉼표 구분: cpp, ai, algorithm)">
+                <input type="text" aria-label="주제 태그" id="input-tags" class="input-tags" disabled placeholder="주제 태그 (쉼표 구분: cpp, ai, algorithm)">
             </div>
 
             <!-- Formatting Toolbar -->
@@ -993,7 +1011,7 @@
                 <button type="button" class="tool-btn" data-cmd="italic" title="기울임 (Ctrl+I)"><span class="material-symbols-outlined">format_italic</span></button>
                 <button type="button" class="tool-btn" data-cmd="strike" title="취소선"><span class="material-symbols-outlined">strikethrough_s</span></button>
                 <button type="button" class="tool-btn" data-cmd="highlight" title="형광펜"><span class="material-symbols-outlined">ink_highlighter</span></button>
-                
+
                 <div class="tool-divider"></div>
 
                 <button type="button" class="tool-btn" data-cmd="h1" title="제목 1">H1</button>
@@ -1010,7 +1028,7 @@
 
             <!-- Editor Textarea -->
             <div class="editor-container">
-                <textarea id="editor-textarea" class="editor-textarea" placeholder="여기에 마크다운 문법으로 자유롭게 내용을 작성하세요... (이미지/파일 드래그 앤 드롭 지원)"></textarea>
+                <textarea aria-label="마크다운 본문" id="editor-textarea" class="editor-textarea" readonly placeholder="여기에 마크다운 문법으로 자유롭게 내용을 작성하세요... (이미지/파일 드래그 앤 드롭 지원)"></textarea>
                 <div id="drag-overlay" class="drag-overlay">
                     📸 이미지를 놓으면 마스토돈으로 업로드됩니다
                 </div>
@@ -1021,6 +1039,7 @@
         <div class="pane">
             <div class="preview-header">
                 <span>LIVE PREVIEW</span>
+                <button type="button" class="btn" id="btn-preview-edit" hidden>편집으로</button>
                 <span id="preview-meta-info">0 단어 | 0 자</span>
             </div>
             <div id="preview-body" class="preview-body">
@@ -1033,16 +1052,16 @@
 
     <!-- Footer Status Bar -->
     <footer class="app-footer">
-        <div id="status-draft">자동 저장 준비됨</div>
+        <div role="status" aria-live="polite" id="status-draft">자동 저장 준비됨</div>
         <div id="status-server">서버: maximux.suwonmars.com</div>
     </footer>
 
     <!-- Toast Notification -->
-    <div id="toast" class="toast">
+    <div role="status" aria-live="polite" id="toast" class="toast">
         <span id="toast-icon" class="material-symbols-outlined">info</span>
         <span id="toast-message">알림 메시지</span>
     </div>
 
-    <script type="module" src="./admin.js"></script>
+    <script type="module" src="./admin.js?v=20"></script>
 </body>
 </html>

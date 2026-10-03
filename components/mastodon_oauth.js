@@ -1,3 +1,4 @@
+import { stripMetadataTags } from './editor-tools.js?v=20';
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 
 export const REDIRECT_URI = window.location.origin + (window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/');
@@ -456,6 +457,7 @@ export async function postStatus({ statusText, spoilerText, mediaIds = [] }) {
   const chunks = await splitStatusText(statusText);
   const root = await rawPostStatus({ statusText: chunks[0], spoilerText, mediaIds });
   let parentId = root.id;
+  const thread = [];
 
   for (const chunk of chunks.slice(1)) {
     const child = await rawPostStatus({
@@ -463,9 +465,10 @@ export async function postStatus({ statusText, spoilerText, mediaIds = [] }) {
       inReplyToId: parentId
     });
     parentId = child.id;
+    thread.push({ id: String(child.id), text: chunk });
   }
 
-  return root;
+  return { ...root, sulog_thread_chunk_ids: thread.map(chunk => chunk.id), sulog_thread_chunks: thread };
 }
 
 export async function updateStatus({ id, statusText, spoilerText, mediaIds = [], existingThread = null }) {
@@ -541,6 +544,7 @@ async function enrichStatusWithThread(status, accountId) {
   }));
   return {
     ...status,
+    sulog_root_content: status.content,
     content: [status.content, ...chain.map(child => child.content)].join('<p></p>'),
     sulog_thread_chunk_ids: chunks.map(chunk => chunk.id),
     sulog_thread_chunks: chunks
@@ -567,4 +571,27 @@ export async function fetchMyStatuses({ limit = 40, maxId = null } = {}) {
   if (!res.ok) throw new Error(`Failed to fetch statuses: ${await res.text()}`);
 
   return await res.json();
+}
+
+// Editing must use the authenticated source endpoint, not lossy display HTML.
+export async function fetchEditableStatus(status) {
+  const fresh = await fetch(`${INSTANCE_URL}/api/v1/statuses/${status.id}`, {
+    headers: { Authorization: `Bearer ${getStoredToken()}` }
+  });
+  if (!fresh.ok) throw new Error(`게시글 조회 실패 (${fresh.status})`);
+  const combined = await fetchStatusWithThread(await fresh.json());
+  const ids = [status.id, ...(combined.sulog_thread_chunks || []).map(chunk => chunk.id)];
+  const sources = await Promise.all(ids.map(async id => {
+    const response = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}/source`, {
+      headers: { Authorization: `Bearer ${getStoredToken()}` }
+    });
+    if (response.status === 404 || response.status === 403) return null;
+    if (!response.ok) throw new Error(`원문 조회 실패 (${response.status})`);
+    return response.json();
+  }));
+  if (sources.every(Boolean)) {
+    const tags = (combined.tags || []).map(tag => tag.name);
+    combined.sulog_source_text = sources.map(source => stripMetadataTags(source.text.split(THREAD_MARKER).join(''), tags)).join('\n\n');
+  }
+  return combined;
 }

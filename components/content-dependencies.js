@@ -136,8 +136,8 @@ function normalizeMathText(text) {
   normalized = normalized.replace(/(^|[^\\])\$\$([\s\S]*?)\$\$/g, (match, prefix, tex, offset, source) => {
     const delimiterStart = offset + prefix.length;
     const delimiterEnd = offset + match.length;
-    const leading = source.slice(0, delimiterStart);
-    const trailing = source.slice(delimiterEnd);
+    const leading = source.slice(Math.max(0, delimiterStart - 2), delimiterStart);
+    const trailing = source.slice(delimiterEnd, delimiterEnd + 2);
     const before = delimiterStart === 0 || leading.endsWith("\n\n")
       ? ""
       : leading.endsWith("\n") ? "\n" : "\n\n";

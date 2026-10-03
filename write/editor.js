@@ -1,14 +1,13 @@
-// 모든 패키지가 같은 state/view 인스턴스를 공유해야 한다. 버전이 갈리면
-// "Unrecognized extension value"로 EditorView 생성 자체가 실패한다.
-const CODEMIRROR_DEPS = '?deps=@codemirror/state@6.7.4,@codemirror/view@6.43.11';
-const { EditorView, basicSetup } = await import(`https://esm.sh/codemirror@6.0.2${CODEMIRROR_DEPS}`);
-const { Decoration, WidgetType, ViewPlugin } = await import(`https://esm.sh/@codemirror/view@6.43.11?deps=@codemirror/state@6.7.4`);
-const { Compartment } = await import('https://esm.sh/@codemirror/state@6.7.4');
-const { markdown } = await import(`https://esm.sh/@codemirror/lang-markdown@6.5.2${CODEMIRROR_DEPS}`);
-
+import { EditorView, basicSetup } from 'codemirror';
+import { Decoration, WidgetType, ViewPlugin, keymap, placeholder } from '@codemirror/view';
+import { Compartment, EditorState, StateField, StateEffect, EditorSelection } from '@codemirror/state';
+import { markdown } from '@codemirror/lang-markdown';
+import { syntaxTree } from '@codemirror/language';
+import katex from 'katex';
+import { formatText } from '../components/editor-tools.js';
+import { mathMarkdown } from './math-parser.js';
 const MODE_KEY = 'sulog_write_editor_mode';
-const VALID_MODES = new Set(['split', 'source', 'live']);
-
+const VALID_MODES = new Set(['split', 'source', 'live', 'preview']);
 function injectStyles() {
   if (document.getElementById('sulog-codemirror-style')) return;
   const style = document.createElement('style');
@@ -26,15 +25,16 @@ function injectStyles() {
     #cm-editor-host .cm-editor.cm-focused .cm-selectionBackground,
     #cm-editor-host .cm-selectionLayer .cm-selectionBackground,
     #cm-editor-host ::selection { background: rgba(56,189,248,.38) !important; }
-    #cm-editor-host .cm-selectionLayer { z-index: 1 !important; }
     #cm-editor-host .cm-cursor { border-left-color: var(--accent-blue); }
     #cm-editor-host .cm-focused { outline: none; }
 
-    .write-mode-switch { margin-left: auto; display: inline-flex; gap: 2px; padding: 2px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
+    .write-mode-switch { margin-left: auto; display: inline-flex; gap: 2px; padding: 2px; flex-shrink: 0; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
     .write-mode-btn { border: 0; background: transparent; color: var(--text-muted); padding: .25rem .55rem; border-radius: 4px; font: inherit; font-size: .74rem; cursor: pointer; }
     .write-mode-btn:hover { color: var(--text-main); background: var(--bg-hover); }
     .write-mode-btn.active { color: #0f172a; background: var(--accent-blue); font-weight: 700; }
 
+    body.write-mode-preview .workspace > .pane:nth-of-type(1) { display: none !important; }
+    body.write-mode-preview .workspace > .pane:last-child { display: flex !important; }
     body.write-mode-source .workspace > .pane:last-child,
     body.write-mode-live .workspace > .pane:last-child { display: none !important; }
     body.write-mode-source .workspace > .pane:nth-of-type(1),
@@ -57,9 +57,9 @@ function injectStyles() {
     body.write-mode-live .config-bar { background: #121212; }
     body.write-mode-live .config-bar > * { width: min(800px, calc(100% - 3rem)); margin-left: auto; margin-right: auto; }
     body.write-mode-live .input-title { font-size: 2rem; line-height: 1.2; }
-    .cm-live-h1 { font-size: 2.5rem; line-height: 1.2; font-weight: 750; color: #fff; margin-top: 1.5rem; }
-    .cm-live-h2 { font-size: 1.65rem; line-height: 1.35; font-weight: 720; color: #fff; margin-top: 2.75rem; }
-    .cm-live-h3 { font-size: 1.3rem; line-height: 1.35; font-weight: 700; color: #fff; margin-top: 2.25rem; }
+    .cm-live-h1 { font-size: 2.5rem; line-height: 1.2; font-weight: 750; color: #fff;  }
+    .cm-live-h2 { font-size: 1.65rem; line-height: 1.35; font-weight: 720; color: #fff;  }
+    .cm-live-h3 { font-size: 1.3rem; line-height: 1.35; font-weight: 700; color: #fff;  }
     .cm-live-h4 { font-size: 1.12em; line-height: 1.4; font-weight: 680; color: #fff; }
     .cm-live-strong { font-weight: 750; color: #fff; }
     .cm-live-em { font-style: italic; }
@@ -73,468 +73,182 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
+const compositionState = StateEffect.define();
+const composing = StateField.define({
+  create: () => false,
+  update(value, tr) { for (const effect of tr.effects) if (effect.is(compositionState)) value = effect.value; return value; }
+});
+function active(state, from, to) {
+  return state.field(composing) || state.selection.ranges.some(range => range.from <= to && range.to >= from);
+}
+const mathCache = new Map();
 class MathWidget extends WidgetType {
-  constructor(tex, displayMode) {
-    super();
-    this.tex = tex;
-    this.displayMode = displayMode;
-  }
-
-  eq(other) {
-    return other.tex === this.tex && other.displayMode === this.displayMode;
-  }
-
-  toDOM() {
-    // ViewPlugin이 제공하는 decoration은 CodeMirror의 block decoration이 될 수 없다.
-    // span을 CSS block으로 표시하면 같은 레이아웃을 유지하면서 해당 제약을 피한다.
-    const wrap = document.createElement('span');
+  constructor(tex, displayMode, from) { super(); this.tex = tex; this.displayMode = displayMode; this.from = from; }
+  eq(other) { return this.tex === other.tex && this.displayMode === other.displayMode && this.from === other.from; }
+  toDOM(view) {
+    const wrap = document.createElement(this.displayMode ? 'div' : 'span');
     wrap.className = this.displayMode ? 'cm-live-math-block' : 'cm-live-math-inline';
-    try {
-      if (window.katex) {
-        window.katex.render(this.tex, wrap, {
-          displayMode: this.displayMode,
-          throwOnError: false,
-          strict: false
-        });
-      } else {
-        wrap.textContent = this.tex;
-        wrap.classList.add('cm-live-math-error');
-      }
-    } catch (error) {
-      wrap.textContent = this.tex;
-      wrap.classList.add('cm-live-math-error');
+    const key = `${this.displayMode}:${this.tex}`;
+    let html = mathCache.get(key);
+    if (!html) {
+      html = katex.renderToString(this.tex, { displayMode: this.displayMode, throwOnError: false, strict: false });
+      if (mathCache.size >= 128) mathCache.delete(mathCache.keys().next().value);
+      mathCache.set(key, html);
     }
+    wrap.innerHTML = html;
+    wrap.addEventListener('mousedown', event => {
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.from + 2 }, scrollIntoView: true });
+      view.focus();
+    });
     return wrap;
   }
-
-  ignoreEvent() {
-    return false;
-  }
+  ignoreEvent() { return true; }
 }
-
-function overlapsAny(from, to, ranges) {
-  return ranges.some(range => from < range.to && to > range.from);
+function mathDecorations(state, nodes) {
+  const result = [];
+  for (const node of nodes) {
+    if (active(state, node.from, node.to)) continue;
+    const raw = state.doc.sliceString(node.from, node.to);
+    const block = node.name === 'BlockMath';
+    const size = block || raw.startsWith('$$') ? 2 : 1;
+    if (!raw.endsWith('$'.repeat(size)) || raw.length <= size * 2) continue;
+    result.push(Decoration.replace({ widget: new MathWidget(raw.slice(size, -size).trim(), block, node.from), block,
+      inclusive: false }).range(node.from, node.to));
+  }
+  return Decoration.set(result, true);
 }
-
-function pushRange(ranges, decoration, from, to = from) {
-  if (to < from) return;
-  ranges.push(decoration.range(from, to));
-}
-
-function findCodeRanges(text, offset = 0) {
-  const ranges = [];
-  let cursor = 0;
-
-  while (cursor < text.length) {
-    const lineStart = cursor === 0 || text[cursor - 1] === '\n';
-    if (lineStart) {
-      const lineEnd = text.indexOf('\n', cursor);
-      const end = lineEnd === -1 ? text.length : lineEnd;
-      const opener = /^( {0,3})(`{3,}|~{3,})/.exec(text.slice(cursor, end));
-      if (opener) {
-        const marker = opener[2][0];
-        const minLength = opener[2].length;
-        let fenceEnd = lineEnd === -1 ? text.length : lineEnd + 1;
-        let search = fenceEnd;
-        while (search < text.length) {
-          const closeLineEnd = text.indexOf('\n', search);
-          const closeEnd = closeLineEnd === -1 ? text.length : closeLineEnd;
-          const closer = new RegExp(`^ {0,3}${marker}{${minLength},}[ \\t]*$`);
-          if (closer.test(text.slice(search, closeEnd))) {
-            fenceEnd = closeLineEnd === -1 ? text.length : closeLineEnd + 1;
-            break;
-          }
-          if (closeLineEnd === -1) {
-            fenceEnd = text.length;
-            break;
-          }
-          search = closeLineEnd + 1;
-          fenceEnd = search;
-        }
-        ranges.push({ from: offset + cursor, to: offset + fenceEnd, type: 'fence' });
-        cursor = fenceEnd;
-        continue;
-      }
-    }
-
-    if (text[cursor] === '`') {
-      let runEnd = cursor + 1;
-      while (text[runEnd] === '`') runEnd += 1;
-      const ticks = text.slice(cursor, runEnd);
-      const close = text.indexOf(ticks, runEnd);
-      if (close !== -1) {
-        const codeEnd = close + ticks.length;
-        ranges.push({ from: offset + cursor, to: offset + codeEnd, type: 'span' });
-        cursor = codeEnd;
-        continue;
-      }
-      cursor = runEnd;
-      continue;
-    }
-    cursor += 1;
-  }
-
-  return ranges;
-}
-
-function buildLiveDecorations(view) {
-  const ranges = [];
-  const atomicRanges = [];
-  const doc = view.state.doc;
-
-  // 화면 근처만 다시 계산한다. 큰 강의노트에서도 매 키 입력마다 전체 문서를 훑지 않는다.
-  const visible = view.visibleRanges.length ? view.visibleRanges : [{ from: 0, to: doc.length }];
-  const scanFrom = Math.max(0, visible[0].from - 5000);
-  const scanTo = Math.min(doc.length, visible[visible.length - 1].to + 5000);
-  const text = doc.sliceString(scanFrom, scanTo);
-  const codeRanges = findCodeRanges(text, scanFrom);
-  const mathRanges = [];
-
-  // Display math: $$ ... $$ . Closing $$ 뒤의 공백/개행은 수식 범위에 포함하지 않는다.
-  const blockMath = /\$\$([\s\S]*?)\$\$/g;
-  for (const match of text.matchAll(blockMath)) {
-    const from = scanFrom + match.index;
-    const to = from + match[0].length;
-    if (overlapsAny(from, to, codeRanges)) continue;
-    mathRanges.push({ from, to });
-    const firstLine = doc.lineAt(from);
-    const lastLine = doc.lineAt(Math.max(from, to - 1));
-    const before = doc.sliceString(firstLine.from, from).trim();
-    const afterRaw = doc.sliceString(to, lastLine.to);
-    const after = afterRaw.trim();
-    const tex = match[1].trim();
-
-    // 완전히 독립된 블록이고 닫는 $$가 실제 줄 끝일 때만 block decoration을 쓴다.
-    // trailing space가 있으면 그 공백과 caret까지 replace하지 않도록 정확한 $$ 범위만 치환한다.
-    if (!before && !after && to === lastLine.to) {
-      const decoration = Decoration.replace({ widget: new MathWidget(tex, true) });
-      pushRange(ranges, decoration, from, to);
-      pushRange(atomicRanges, decoration, from, to);
-    } else {
-      const decoration = Decoration.replace({ widget: new MathWidget(tex, false) });
-      pushRange(ranges, decoration, from, to);
-      pushRange(atomicRanges, decoration, from, to);
-    }
-  }
-
-  // Inline math: $ ... $
-  const inlineMath = /(^|[^$\\])\$([^$\n]+?)\$(?!\$)/gm;
-  for (const match of text.matchAll(inlineMath)) {
-    const prefix = match[1] || '';
-    const from = scanFrom + match.index + prefix.length;
-    const to = from + match[0].length - prefix.length;
-    if (overlapsAny(from, to, codeRanges)) continue;
-    if (overlapsAny(from, to, mathRanges)) continue;
-    mathRanges.push({ from, to });
-    const decoration = Decoration.replace({ widget: new MathWidget(match[2].trim(), false) });
-    pushRange(ranges, decoration, from, to);
-    pushRange(atomicRanges, decoration, from, to);
-  }
-
-  // Line-oriented Markdown: headings / blockquotes.
-  let line = doc.lineAt(scanFrom);
-  while (line.from <= scanTo) {
-    const lineText = line.text;
-    const heading = /^(#{1,6})\s+/.exec(lineText);
-    if (heading) {
-      const level = Math.min(4, heading[1].length);
-      pushRange(ranges, Decoration.line({ class: `cm-live-h${level}` }), line.from);
-      const decoration = Decoration.replace({});
-      pushRange(ranges, decoration, line.from, line.from + heading[0].length);
-      pushRange(atomicRanges, decoration, line.from, line.from + heading[0].length);
-    } else {
-      const quote = /^>\s?/.exec(lineText);
-      if (quote) {
-        pushRange(ranges, Decoration.line({ class: 'cm-live-quote' }), line.from);
-        const decoration = Decoration.replace({});
-        pushRange(ranges, decoration, line.from, line.from + quote[0].length);
-        pushRange(atomicRanges, decoration, line.from, line.from + quote[0].length);
-      }
-    }
-
-    if (line.to >= doc.length) break;
-    line = doc.line(line.number + 1);
-  }
-
-  // Inline markup. Math ranges are excluded so formulas are not styled twice.
-  const inlineRules = [
-    { re: /\*\*([^*\n]+?)\*\*/g, cls: 'cm-live-strong', open: 2, close: 2 },
-    { re: /__([^_\n]+?)__/g, cls: 'cm-live-strong', open: 2, close: 2 },
-    { re: /`([^`\n]+?)`/g, cls: 'cm-live-code', open: 1, close: 1 },
-    { re: /(^|[^*])\*([^*\n]+?)\*(?!\*)/gm, cls: 'cm-live-em', open: 1, close: 1, prefixGroup: true },
-    { re: /(^|[^_])_([^_\n]+?)_(?!_)/gm, cls: 'cm-live-em', open: 1, close: 1, prefixGroup: true }
-  ];
-
-  for (const rule of inlineRules) {
-    for (const match of text.matchAll(rule.re)) {
-      const prefix = rule.prefixGroup ? (match[1] || '').length : 0;
-      const from = scanFrom + match.index + prefix;
-      const to = scanFrom + match.index + match[0].length;
-      if (overlapsAny(from, to, mathRanges)) continue;
-      if (rule.cls !== 'cm-live-code' && overlapsAny(from, to, codeRanges)) continue;
-      if (rule.cls === 'cm-live-code' && codeRanges.some(range => range.type === 'fence' && from < range.to && to > range.from)) continue;
-      const innerFrom = from + rule.open;
-      const innerTo = to - rule.close;
-      if (innerTo <= innerFrom) continue;
-
-      pushRange(ranges, Decoration.mark({ class: rule.cls }), innerFrom, innerTo);
-      const openDecoration = Decoration.replace({});
-      const closeDecoration = Decoration.replace({});
-      pushRange(ranges, openDecoration, from, innerFrom);
-      pushRange(ranges, closeDecoration, innerTo, to);
-      pushRange(atomicRanges, openDecoration, from, innerFrom);
-      pushRange(atomicRanges, closeDecoration, innerTo, to);
-    }
-  }
-
-  ranges.sort((a, b) => a.from - b.from || a.to - b.to);
-  atomicRanges.sort((a, b) => a.from - b.from || a.to - b.to);
-  return {
-    decorations: Decoration.set(ranges, true),
-    atomicRanges: Decoration.set(atomicRanges, true)
-  };
-}
-
-const livePreviewPlugin = ViewPlugin.fromClass(class {
-  constructor(view) {
-    const live = buildLiveDecorations(view);
-    this.decorations = live.decorations;
-    this.atomicRanges = live.atomicRanges;
-  }
-
-  update(update) {
-    if (update.docChanged || update.viewportChanged || update.selectionSet) {
-      const live = buildLiveDecorations(update.view);
-      this.decorations = live.decorations;
-      this.atomicRanges = live.atomicRanges;
-    }
-  }
-}, {
-  decorations: value => value.decorations,
-  provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.atomicRanges || Decoration.none)
+// Direct state decorations may replace line breaks. Viewport plugins may not.
+const mathField = StateField.define({
+  create(state) { return buildMathState(state); },
+  update(value, tr) {
+    const tree = syntaxTree(tr.state);
+    if (tree !== value.tree) return buildMathState(tr.state);
+    if (tr.effects.some(effect => effect.is(compositionState)) || (tr.selection && value.nodes.some(node => active(tr.startState, node.from, node.to) !== active(tr.state, node.from, node.to))))
+      return { ...value, decorations: mathDecorations(tr.state, value.nodes) };
+    return value;
+  },
+  provide: field => [EditorView.decorations.from(field, value => value.decorations),
+    EditorView.atomicRanges.of(view => view.state.field(field).decorations)]
 });
-
-function replaceSelection(view, before, after = before, placeholder = '') {
-  const selection = view.state.selection.main;
-  const selected = view.state.sliceDoc(selection.from, selection.to);
-  const body = selected || placeholder;
-  const insert = `${before}${body}${after}`;
-  const anchor = selected
-    ? selection.from + insert.length
-    : selection.from + before.length + body.length;
-
-  view.dispatch({
-    changes: { from: selection.from, to: selection.to, insert },
-    selection: { anchor },
-    scrollIntoView: true
-  });
-  view.focus();
+function buildMathState(state) {
+  const nodes = [], tree = syntaxTree(state);
+  tree.iterate({ enter(node) {
+    if (['FencedCode', 'CodeBlock', 'InlineCode'].includes(node.name)) return false;
+    if (node.name === 'BlockMath' || node.name === 'InlineMath') {
+      nodes.push({ from: node.from, to: node.to, name: node.name }); return false;
+    }
+  }});
+  return { tree, nodes, decorations: mathDecorations(state, nodes) };
 }
-
-function installModeSwitch(view, liveCompartment) {
-  const toolbar = document.querySelector('.toolbar');
-  if (!toolbar) return () => {};
-
-  const switcher = document.createElement('div');
-  switcher.className = 'write-mode-switch';
-  switcher.setAttribute('aria-label', '에디터 보기 모드');
-  switcher.innerHTML = `
-    <button type="button" class="write-mode-btn" data-write-mode="split" title="Markdown 원문과 렌더 프리뷰를 함께 표시">분할</button>
-    <button type="button" class="write-mode-btn" data-write-mode="source" title="Markdown 원문만 표시">텍스트</button>
-    <button type="button" class="write-mode-btn" data-write-mode="live" title="Obsidian Live Preview처럼 현재 위치 외 문법과 수식을 렌더">라이브</button>
-  `;
-  toolbar.appendChild(switcher);
-
-  const setMode = requested => {
-    const mode = VALID_MODES.has(requested) ? requested : 'split';
-    localStorage.setItem(MODE_KEY, mode);
-    document.body.classList.remove('write-mode-split', 'write-mode-source', 'write-mode-live');
-    document.body.classList.add(`write-mode-${mode}`);
-    switcher.querySelectorAll('[data-write-mode]').forEach(button => {
-      button.classList.toggle('active', button.dataset.writeMode === mode);
-    });
-    view.dispatch({
-      effects: liveCompartment.reconfigure(mode === 'live' ? livePreviewPlugin : [])
-    });
-    document.dispatchEvent(new CustomEvent('sulog:editor-mode-change', {
-      detail: { mode }
-    }));
-    requestAnimationFrame(() => view.requestMeasure());
-  };
-
-  switcher.addEventListener('click', event => {
-    const button = event.target.closest('[data-write-mode]');
-    if (button) setMode(button.dataset.writeMode);
-  });
-
-  setMode(localStorage.getItem(MODE_KEY) || 'split');
-  return setMode;
-}
-
-export async function installWriteEditor() {
-  const textarea = document.getElementById('editor-textarea');
-  const container = document.querySelector('.editor-container');
-  if (!textarea || !container || document.getElementById('cm-editor-host')) return null;
-
-  injectStyles();
-
-  const host = document.createElement('div');
-  host.id = 'cm-editor-host';
-  container.insertBefore(host, textarea);
-
-  const liveCompartment = new Compartment();
-  const originalValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
-  let view = null;
-  let syncingFromCodeMirror = false;
-  let externalSyncQueued = false;
-
-  const syncFromTextarea = () => {
-    if (!view || syncingFromCodeMirror) return;
-    const next = originalValue.get.call(textarea);
-    const current = view.state.doc.toString();
-    if (next === current) return;
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
-  };
-
-  // 기존 admin.js가 textarea.value를 직접 바꾸는 부분(포스트 열기/새 글/업로드)을 그대로 살린다.
-  Object.defineProperty(textarea, 'value', {
-    configurable: true,
-    get() {
-      return originalValue.get.call(textarea);
-    },
-    set(value) {
-      originalValue.set.call(textarea, value);
-      if (!syncingFromCodeMirror && !externalSyncQueued) {
-        externalSyncQueued = true;
-        queueMicrotask(() => {
-          externalSyncQueued = false;
-          syncFromTextarea();
-        });
+function liveDecorations(view) {
+  const ranges = [], state = view.state;
+  for (const visible of view.visibleRanges) {
+    syntaxTree(state).iterate({ from: visible.from, to: visible.to, enter(node) {
+      if (['FencedCode', 'CodeBlock', 'BlockMath', 'InlineMath'].includes(node.name)) return false;
+      const line = state.doc.lineAt(node.from);
+      const editing = active(state, line.from, state.doc.lineAt(node.to).to);
+      const heading = /^ATXHeading([1-6])$/.exec(node.name);
+      if (heading) ranges.push(Decoration.line({ class: `cm-live-h${Math.min(4, Number(heading[1]))}` }).range(line.from));
+      const styles = { StrongEmphasis: 'cm-live-strong', Emphasis: 'cm-live-em', InlineCode: 'cm-live-code' };
+      if (styles[node.name]) ranges.push(Decoration.mark({ class: styles[node.name] }).range(node.from, node.to));
+      // Preserve all characters on active lines. No atomic ranges for ordinary markup.
+      if (!editing && ['HeaderMark', 'EmphasisMark', 'CodeMark', 'QuoteMark'].includes(node.name)) {
+        ranges.push(Decoration.replace({}).range(node.from, node.to));
       }
-    }
-  });
-
-  const theme = EditorView.theme({
-    '&': { fontSize: '14px', height: '100%' },
-    '.cm-scroller': { minHeight: '100%' },
-    '.cm-content': { minHeight: '100%' },
-    '.cm-line': { caretColor: 'var(--accent-blue)' }
-  }, { dark: true });
-
-  const syncExtension = EditorView.updateListener.of(update => {
-    if (!update.docChanged) return;
-    syncingFromCodeMirror = true;
-    originalValue.set.call(textarea, update.state.doc.toString());
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    syncingFromCodeMirror = false;
-  });
-
-  view = new EditorView({
-    parent: host,
-    doc: originalValue.get.call(textarea),
-    extensions: [
-      basicSetup,
-      markdown(),
-      EditorView.lineWrapping,
-      theme,
-      syncExtension,
-      liveCompartment.of([])
-    ]
-  });
-
-  window.sulogWriteEditor = view;
-  installModeSwitch(view, liveCompartment);
-
-  // 편집기 아래쪽 빈 공간 클릭 시 포커스 및 문서 끝으로 caret 이동
-  host.addEventListener('mousedown', event => {
-    if (event.button !== 0 || event.target.closest('.cm-gutterElement') || event.target.closest('.cm-content')) return;
-    const rect = view.contentDOM.getBoundingClientRect();
-    if (event.clientY > rect.bottom) {
-      event.preventDefault();
-      view.dispatch({ selection: { anchor: view.state.doc.length } });
-      view.focus();
-    }
-  });
-
-  // 기존 toolbar의 익명 handler를 유지하기 위해 클릭 직전에 textarea selection을 CM selection과 맞춘다.
-  const toolbar = document.querySelector('.toolbar');
-  if (toolbar) {
-    toolbar.addEventListener('click', event => {
-      const button = event.target.closest('.tool-btn[data-cmd]');
-      if (!button) return;
-      const selection = view.state.selection.main;
-      textarea.setSelectionRange(selection.from, selection.to);
-      queueMicrotask(() => {
-        syncFromTextarea();
-        const pos = Math.min(textarea.selectionStart, view.state.doc.length);
-        view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
-        view.focus();
-      });
-    }, true);
+      if (node.name === 'QuoteMark') ranges.push(Decoration.line({ class: 'cm-live-quote' }).range(line.from));
+    }});
   }
+  return Decoration.set(ranges, true);
+}
+const livePlugin = ViewPlugin.fromClass(class {
+  constructor(view) { this.decorations = liveDecorations(view); }
+  update(update) {
+    const lineKey = state => state.selection.ranges.map(r => `${state.doc.lineAt(r.from).number}:${state.doc.lineAt(r.to).number}`).join(',');
+    if (update.docChanged || update.viewportChanged || syntaxTree(update.state) !== syntaxTree(update.startState) ||
+        lineKey(update.state) !== lineKey(update.startState) || update.transactions.some(tr => tr.effects.some(e => e.is(compositionState))))
+      this.decorations = liveDecorations(update.view);
+  }
+}, { decorations: value => value.decorations });
 
-  // CodeMirror에서 기존 단축키 UX를 유지한다.
-  view.dom.addEventListener('keydown', event => {
-    if (!(event.ctrlKey || event.metaKey)) return;
-    const key = event.key.toLowerCase();
-    if (key === 'a') {
-      event.preventDefault();
-      event.stopPropagation();
-      view.dispatch({
-        selection: { anchor: 0, head: view.state.doc.length }
-      });
-      view.focus();
-      try {
-        textarea.setSelectionRange(0, textarea.value.length);
-      } catch (_) {}
-    } else if (key === 'b') {
-      event.preventDefault();
-      replaceSelection(view, '**', '**', 'bold text');
-    } else if (key === 'i') {
-      event.preventDefault();
-      replaceSelection(view, '*', '*', 'italic text');
-    } else if (key === 'k') {
-      event.preventDefault();
-      const selection = view.state.selection.main;
-      const selected = view.state.sliceDoc(selection.from, selection.to) || 'link text';
-      const insert = `[${selected}](https://example.com)`;
-      view.dispatch({
-        changes: { from: selection.from, to: selection.to, insert },
-        selection: { anchor: selection.from + insert.length },
-        scrollIntoView: true
-      });
-    } else if (key === 's') {
-      event.preventDefault();
-      textarea.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 's', ctrlKey: true, metaKey: event.metaKey, bubbles: true, cancelable: true
-      }));
-    }
-  }, true);
-
-  // 기존 Mastodon media drag/drop 로직도 hidden textarea로 전달한다.
-  const overlay = document.getElementById('drag-overlay');
-  view.dom.addEventListener('dragover', event => {
-    event.preventDefault();
-    overlay?.classList.add('active');
-  });
-  view.dom.addEventListener('dragleave', event => {
-    if (!view.dom.contains(event.relatedTarget)) overlay?.classList.remove('active');
-  });
-  view.dom.addEventListener('drop', event => {
-    event.preventDefault();
-    overlay?.classList.remove('active');
-    try {
-      const forwarded = new DragEvent('drop', {
-        bubbles: true,
-        cancelable: true,
-        dataTransfer: event.dataTransfer
-      });
-      textarea.dispatchEvent(forwarded);
-    } catch (error) {
-      console.warn('Could not forward media drop to legacy editor:', error);
-    }
-  });
-
-  view.focus();
-  return view;
+export function installWriteEditor() {
+  const textarea = document.getElementById('editor-textarea'), container = document.querySelector('.editor-container');
+  if (!textarea || !container || document.getElementById('cm-editor-host')) return null;
+  const host = document.createElement('div'); host.id = 'cm-editor-host'; container.prepend(host);
+  const live = new Compartment();
+  let mode = localStorage.getItem(MODE_KEY) || 'split', snapshot, snapshotDoc;
+  let bookmarks = new Set();
+  const notify = () => textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  const applyFormat = cmd => {
+    const change = view.state.changeByRange(range => {
+      const format = formatText(cmd, view.state.sliceDoc(range.from, range.to));
+      if (!format) return { range };
+      return { changes: { from: range.from, to: range.to, insert: format.insert },
+        range: EditorSelection.range(range.from + format.from, range.from + format.to) };
+    });
+    view.dispatch({ ...change, scrollIntoView: true, userEvent: 'input' }); view.focus(); return true;
+  };
+  const extensions = () => [basicSetup, markdown({ extensions: [mathMarkdown] }), EditorView.lineWrapping, composing,
+    placeholder(textarea.placeholder), EditorView.theme({ '&': { fontSize: '14px', height: '100%' }, '.cm-scroller': { overflow: 'auto' } }, { dark: true }),
+    keymap.of([{ key: 'Mod-b', run: () => applyFormat('bold') }, { key: 'Mod-i', run: () => applyFormat('italic') },
+      { key: 'Mod-k', run: () => applyFormat('link') }, { key: 'Mod-s', run: () => { document.dispatchEvent(new Event('sulog:save')); return true; } }]),
+    EditorView.domEventHandlers({
+      compositionstart: () => { view.dispatch({ effects: compositionState.of(true) }); return false; },
+      compositionend: () => { setTimeout(() => { view.dispatch({ effects: compositionState.of(false) }); document.dispatchEvent(new Event('sulog:composition-end')); }, 0); return false; },
+      dragover: event => { if (!event.dataTransfer?.types.includes('Files')) return false;
+        event.preventDefault(); document.getElementById('drag-overlay')?.classList.add('active'); return true; },
+      dragleave: () => { document.getElementById('drag-overlay')?.classList.remove('active'); return false; },
+      drop: event => {
+        if (!event.dataTransfer?.files.length) return false;
+        event.preventDefault(); document.getElementById('drag-overlay')?.classList.remove('active');
+        document.dispatchEvent(new CustomEvent('sulog:media-drop', { detail: {
+          files: Array.from(event.dataTransfer.files), position: view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
+        }})); return true;
+      }
+    }),
+    EditorView.updateListener.of(update => {
+      if (!update.docChanged) return;
+      for (const mark of bookmarks) mark.position = update.changes.mapPos(mark.position, 1);
+      snapshotDoc = null; notify();
+    }), live.of(mode === 'live' ? [mathField, livePlugin] : [])];
+  const view = new EditorView({ parent: host, state: EditorState.create({ doc: textarea.value, extensions: extensions() }) });
+  window.sulogWriteEditor = view;
+  window.sulogEditor = {
+    get value() { if (snapshotDoc !== view.state.doc) { snapshotDoc = view.state.doc; snapshot = snapshotDoc.toString(); } return snapshot; },
+    get length() { return view.state.doc.length; },
+    format: applyFormat,
+    replaceDocument(text) { bookmarks.clear(); view.setState(EditorState.create({ doc: text, extensions: extensions() })); snapshotDoc = null; },
+    bookmark(position = view.state.selection.main.head) {
+      const mark = { position }; bookmarks.add(mark);
+      return { insert(text) { view.dispatch({ changes: { from: mark.position, insert: text }, userEvent: 'input' }); },
+        release() { bookmarks.delete(mark); } };
+    },
+    focus: () => view.focus()
+  };
+  // Legacy callers read on demand, rather than copying the whole document per keystroke.
+  Object.defineProperty(textarea, 'value', { configurable: true, get: () => window.sulogEditor.value,
+    set: value => window.sulogEditor.replaceDocument(String(value)) });
+  injectStyles();
+  const toolbar = document.querySelector('.toolbar');
+  const switcher = document.createElement('div'); switcher.className = 'write-mode-switch';
+  switcher.setAttribute('aria-label', '에디터 보기 모드');
+  for (const [value, label] of [['split', '분할'], ['source', '텍스트'], ['live', '라이브'], ['preview', '미리보기']]) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'write-mode-btn';
+    button.textContent = label; button.dataset.writeMode = value; switcher.append(button);
+  }
+  toolbar.prepend(switcher);
+  const setMode = requested => {
+    mode = VALID_MODES.has(requested) ? requested : 'split'; localStorage.setItem(MODE_KEY, mode);
+    document.body.classList.remove('write-mode-split', 'write-mode-source', 'write-mode-live', 'write-mode-preview'); document.body.classList.add(`write-mode-${mode}`);
+    for (const button of switcher.children) { button.classList.toggle('active', button.dataset.writeMode === mode); button.setAttribute('aria-pressed', button.dataset.writeMode === mode); }
+    view.dispatch({ effects: live.reconfigure(mode === 'live' ? [mathField, livePlugin] : []) });
+    document.getElementById('btn-preview-edit').hidden = mode !== 'preview';
+    document.dispatchEvent(new CustomEvent('sulog:editor-mode-change', { detail: { mode } })); view.requestMeasure();
+    if (mode !== 'preview') view.focus(); else document.getElementById('btn-preview-edit').focus();
+  };
+  switcher.addEventListener('click', event => { const button = event.target.closest('[data-write-mode]'); if (button) setMode(button.dataset.writeMode); });
+  document.getElementById('btn-preview-edit').addEventListener('click', () => setMode('source'));
+  setMode(mode);
+  document.fonts?.ready.then(() => view.requestMeasure());
+  view.focus(); return view;
 }

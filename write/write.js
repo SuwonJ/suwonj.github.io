@@ -1,59 +1,8 @@
-const DB_NAME = 'sulog-write';
-const DB_VERSION = 1;
-const STORE_NAME = 'kv';
-const DRAFT_KEY = 'current-draft';
+import { dbGet, dbSet } from '../components/drafts.js?v=20';
 const ACCOUNT_KEY = 'mastodon-account';
 const VISIBILITY_KEY = 'sulog_write_visibility';
-const EDITOR_MODE_KEY = 'sulog_write_editor_mode';
-const VALID_EDITOR_MODES = new Set(['split', 'source', 'live']);
-
-// admin.js의 첫 프리뷰 렌더보다 먼저 모드를 표시한다. 이전 모드가 live/source라면
-// 로그인 직후 숨겨진 우측 프리뷰를 통째로 만드는 일을 막는다.
-const initialEditorMode = localStorage.getItem(EDITOR_MODE_KEY) || 'split';
-document.body.classList.add(`write-mode-${VALID_EDITOR_MODES.has(initialEditorMode) ? initialEditorMode : 'split'}`);
-
-function openDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function dbGet(key) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).get(key);
-    request.onsuccess = () => resolve(request.result ?? null);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function dbSet(key, value) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function restoreIndexedDbDraft() {
-  try {
-    if (localStorage.getItem('sulog_admin_draft')) return;
-    const cached = await dbGet(DRAFT_KEY);
-    if (!cached?.draft) return;
-    localStorage.setItem('sulog_admin_draft', JSON.stringify(cached.draft));
-  } catch (error) {
-    console.warn('IndexedDB draft restore failed:', error);
-  }
-}
+const mode = localStorage.getItem('sulog_write_editor_mode') || 'split';
+document.body.classList.add(`write-mode-${['split','source','live','preview'].includes(mode) ? mode : 'split'}`);
 
 function installVisibilityControl() {
   const configBar = document.querySelector('.config-bar');
@@ -121,38 +70,6 @@ function installFetchLayer() {
   };
 }
 
-function installDraftMirror() {
-  const title = document.getElementById('input-title');
-  const tags = document.getElementById('input-tags');
-  const editor = document.getElementById('editor-textarea');
-  if (!title || !tags || !editor) return;
-
-  let timer = null;
-  const save = () => {
-    clearTimeout(timer);
-    timer = setTimeout(async () => {
-      const active = document.querySelector('.cat-opt.active');
-      const draft = {
-        category: active?.dataset.cat || 'blog',
-        title: title.value,
-        tags: tags.value,
-        markdown: editor.value,
-        updatedAt: new Date().toLocaleTimeString()
-      };
-      try {
-        await dbSet(DRAFT_KEY, { draft, savedAt: Date.now() });
-      } catch (error) {
-        console.warn('IndexedDB draft backup failed:', error);
-      }
-    }, 250);
-  };
-
-  title.addEventListener('input', save);
-  tags.addEventListener('input', save);
-  editor.addEventListener('input', save);
-  document.querySelectorAll('.cat-opt').forEach(el => el.addEventListener('click', save));
-}
-
 function updateConnectionState() {
   const state = document.getElementById('write-offline-state');
   if (!state) return;
@@ -176,48 +93,13 @@ async function registerServiceWorker() {
   }
 }
 
-async function waitForAdminReady(timeoutMs = 8000) {
-  const start = performance.now();
-
-  // admin.js는 initAdminStudio()를 비동기로 호출하지만 그 Promise를 export하지 않는다.
-  // import()가 끝났다고 loadDraft()/setupEditorAndPreview()까지 끝난 것은 아니므로,
-  // 인증 UI가 준비된 뒤 한 프레임 더 기다려 초기화가 textarea를 늦게 덮어쓰는 race를 막는다.
-  while (performance.now() - start < timeoutMs) {
-    const authReady = document.querySelector('#btn-login, .user-chip');
-    const textarea = document.getElementById('editor-textarea');
-    if (authReady && textarea) {
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return;
-    }
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-
-  console.warn('Admin initialization readiness check timed out; continuing with textarea state as-is.');
-}
-
-await registerServiceWorker();
-await restoreIndexedDbDraft();
+// Auth fallback must be in place before the shared studio initializes.
 installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
-
-// 기존 CMS 로직을 그대로 재사용한다. DOM은 /admin/index.html과 동일하다.
-// 중요: admin.js 내부 초기화가 끝나기 전에 CodeMirror를 붙이면 늦게 실행된 loadDraft()가
-// 사용자가 막 입력한 내용을 textarea -> CodeMirror 방향으로 덮어쓸 수 있다.
-await import('../admin/admin.js?v=19');
-await waitForAdminReady();
-
-installDraftMirror();
+const { adminReady } = await import('../admin/admin.js?v=20');
+await adminReady;
 updateConnectionState();
 window.addEventListener('online', updateConnectionState);
 window.addEventListener('offline', updateConnectionState);
-
-// CodeMirror 로딩에 실패해도 기존 textarea CMS는 그대로 쓸 수 있게 fallback한다.
-try {
-  const { installWriteEditor } = await import('./editor.js?v=19');
-  await installWriteEditor();
-} catch (error) {
-  console.error('CodeMirror initialization failed; falling back to textarea:', error);
-  const status = document.getElementById('status-draft');
-  if (status) status.textContent = 'CodeMirror 로드 실패 · 기본 에디터 사용 중';
-}
+registerServiceWorker();

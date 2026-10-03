@@ -1,3 +1,4 @@
+import { stripMetadataTags } from './editor-tools.js?v=20';
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 const ACCOUNT_ID = "116979319977947616";
 const THREAD_MARKER = "\u2063\u2063";
@@ -31,11 +32,15 @@ function isDocumentChunk(status) {
 }
 
 function statusContentToMarkdown(status, { removeTags = true } = {}) {
+  if (status.sulog_source_text == null && status.sulog_root_content != null) {
+    const root = statusContentToMarkdown({ ...status, content: status.sulog_root_content, sulog_root_content: null }, { removeTags });
+    return [root, ...(status.sulog_thread_chunks || []).map(chunk => chunk.text)].join('\n\n');
+  }
   const rawHtml = status?.content || "";
   const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
 
   if (removeTags) {
-    doc.querySelectorAll('a.hashtag').forEach(a => a.remove());
+    // Hashtags in the body are content. Strip only the trailing metadata paragraph below.
   }
 
   doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
@@ -46,12 +51,10 @@ function statusContentToMarkdown(status, { removeTags = true } = {}) {
   let plainText = doc.body.textContent || "";
   plainText = plainText.split(THREAD_MARKER).join('');
 
-  const txtDecoder = document.createElement("textarea");
-  txtDecoder.innerHTML = plainText;
-  let markdownText = txtDecoder.value.trim();
+  let markdownText = status.sulog_source_text ?? plainText.trim();
 
-  if (removeTags) {
-    markdownText = markdownText.replace(/(^|\s)#[^\s#]+/g, '').trim();
+  if (removeTags && status.sulog_source_text == null) {
+    markdownText = stripMetadataTags(markdownText, (status.tags || []).map(tag => tag.name));
   }
 
   return markdownText;
@@ -193,27 +196,15 @@ export function parseMastodonStatus(status) {
     title = status.spoiler_text.trim();
   }
 
-  const lines = markdownText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  if (!title && lines.length > 0) {
-    const firstLine = lines[0];
-
-    if (/^title\s*:\s*/i.test(firstLine)) {
-      title = firstLine.replace(/^title\s*:\s*/i, '').trim();
-      lines.shift();
-      markdownText = lines.join('\n').trim();
-    } else if (/^\[.+\]$/.test(firstLine)) {
-      title = firstLine.substring(1, firstLine.length - 1).trim();
-      lines.shift();
-      markdownText = lines.join('\n').trim();
-    } else if (!firstLine.startsWith('#')) {
-      title = firstLine;
-      if (title.length > 50) {
-        title = title.substring(0, 50) + "...";
-      } else {
-        lines.shift();
-        markdownText = lines.join('\n').trim();
-      }
-    }
+  // Extract a legacy title without trimming/rebuilding the remaining document.
+  const first = /^(?:[ \t]*\n)*([^\n]+)(?:\n|$)/.exec(markdownText);
+  if (!title && first) {
+    const line = first[1].trim();
+    const explicit = /^title\s*:\s*/i.test(line) || /^\[.+\]$/.test(line);
+    if (explicit) {
+      title = /^title\s*:/i.test(line) ? line.replace(/^title\s*:\s*/i, '') : line.slice(1, -1);
+      markdownText = markdownText.slice(first[0].length);
+    } else if (!line.startsWith('#')) title = line.length > 50 ? line.slice(0, 50) + '...' : line;
   }
 
   if (!title) title = "무제 포스트";

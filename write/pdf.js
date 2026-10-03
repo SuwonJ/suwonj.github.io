@@ -103,6 +103,7 @@ function installPdfExport() {
 
   button.addEventListener('click', async () => {
     button.disabled = true;
+    let cleanup = () => {};
     try {
       if (typeof window.sulogRenderPreview === 'function') {
         await window.sulogRenderPreview();
@@ -117,6 +118,13 @@ function installPdfExport() {
       root.id = 'write-print-root';
       root.innerHTML = preview.innerHTML;
       document.body.appendChild(root);
+      await Promise.race([Promise.all([
+        document.fonts?.ready,
+        ...Array.from(root.querySelectorAll('img')).map(image => {
+          image.loading = 'eager';
+          return image.decode?.().catch(() => {});
+        })
+      ]), new Promise((_, reject) => setTimeout(() => reject(new Error('이미지/글꼴 로딩이 지연됩니다. 잠시 후 다시 시도해 주세요.')), 15000))]);
 
       if (document.body.classList.contains('write-mode-live') || document.body.classList.contains('write-mode-source')) {
         document.getElementById('preview-markdown-content')?.replaceChildren();
@@ -127,22 +135,28 @@ function installPdfExport() {
       if (title) document.title = title;
 
       let cleaned = false;
-      const cleanup = () => {
+      const printMedia = window.matchMedia('print');
+      const onMediaChange = event => { if (!event.matches) cleanup(); };
+      cleanup = () => {
         if (cleaned) return;
         cleaned = true;
+        window.removeEventListener('afterprint', cleanup);
+        printMedia.removeEventListener('change', onMediaChange);
         root.remove();
         document.title = oldTitle;
         button.disabled = false;
       };
 
       window.addEventListener('afterprint', cleanup, { once: true });
+      printMedia.addEventListener('change', onMediaChange);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       window.print();
 
-      // afterprint를 보내지 않는 브라우저용 안전장치.
-      setTimeout(cleanup, 1500);
+      // Keep the print DOM until afterprint or print-media exit, including nonblocking dialogs.
     } catch (error) {
+      cleanup();
       console.error('PDF export failed:', error);
+      document.getElementById('write-print-root')?.remove();
       button.disabled = false;
       alert(`PDF 출력 준비 실패: ${error.message}`);
     }
