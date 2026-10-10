@@ -606,13 +606,12 @@ export async function deleteStatus(id) {
 }
 
 async function enrichStatusWithThread(status) {
-  if (!status || Number(status.replies_count || 0) < 1) {
-    return attachDocumentInfo(status, [], []);
-  }
+  if (!status) return status;
   const { textStatuses, mediaVaults } = await loadDocument(status);
   const result = attachDocumentInfo(status, textStatuses, mediaVaults);
   return {
     ...result,
+    sulog_root_content: status.content,
     content: [status.content, ...textStatuses.map(child => child.content)].join('<p></p>')
   };
 }
