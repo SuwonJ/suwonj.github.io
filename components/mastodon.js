@@ -1,7 +1,8 @@
-import { stripMetadataTags } from './editor-tools.js?v=20';
+import { stripMetadataTags } from './editor-tools.js?v=21';
+import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=21';
+
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 const ACCOUNT_ID = "116979319977947616";
-const THREAD_MARKER = "\u2063\u2063";
 const postsByTag = new Map();
 
 export async function fetchPostsByTag(tag) {
@@ -22,100 +23,45 @@ export async function fetchPostsByTag(tag) {
   }
 }
 
-function rawStatusText(status) {
-  const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
-  return doc.body.textContent || '';
-}
-
-function isDocumentChunk(status) {
-  return rawStatusText(status).trimStart().startsWith(THREAD_MARKER);
-}
-
 function statusContentToMarkdown(status, { removeTags = true } = {}) {
   if (status.sulog_source_text == null && status.sulog_root_content != null) {
-    const root = statusContentToMarkdown({ ...status, content: status.sulog_root_content, sulog_root_content: null }, { removeTags });
+    const root = statusContentToMarkdown(
+      { ...status, content: status.sulog_root_content, sulog_root_content: null },
+      { removeTags }
+    );
     return [root, ...(status.sulog_thread_chunks || []).map(chunk => chunk.text)].join('\n\n');
   }
-  const rawHtml = status?.content || "";
-  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-
-  if (removeTags) {
-    // Hashtags in the body are content. Strip only the trailing metadata paragraph below.
-  }
-
+  const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
   doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-  doc.querySelectorAll('p').forEach(p => {
-    p.insertAdjacentText('afterend', '\n\n');
-  });
+  doc.querySelectorAll('p').forEach(p => p.insertAdjacentText('afterend', '\n\n'));
 
-  let plainText = doc.body.textContent || "";
-  plainText = plainText.split(THREAD_MARKER).join('');
-
-  let markdownText = status.sulog_source_text ?? plainText.trim();
-
+  let markdown = status.sulog_source_text ?? removeInternalMarker(doc.body.textContent || '');
+  // Only remove the final system metadata paragraph. Inline hashtags and code
+  // are authored content and must never be stripped with a broad regex.
   if (removeTags && status.sulog_source_text == null) {
-    markdownText = stripMetadataTags(markdownText, (status.tags || []).map(tag => tag.name));
+    markdown = stripMetadataTags(markdown, (status.tags || []).map(tag => tag.name));
   }
-
-  return markdownText;
+  return markdown;
 }
 
-function buildDocumentThreadChain(rootStatus, descendants = []) {
-  const accountId = String(rootStatus?.account?.id || '');
-  const chain = [];
-  const used = new Set();
-  let parentId = String(rootStatus?.id || '');
-
-  while (parentId) {
-    const candidates = descendants
-      .filter(status => !used.has(String(status.id)))
-      .filter(status => String(status.in_reply_to_id || '') === parentId)
-      .filter(status => String(status.account?.id || '') === accountId)
-      .filter(isDocumentChunk)
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-    if (!candidates.length) break;
-    const next = candidates[0];
-    chain.push(next);
-    used.add(String(next.id));
-    parentId = String(next.id);
-  }
-
-  return chain;
-}
-
-async function fetchRawStatusAndContext(id) {
-  const [statusRes, contextRes] = await Promise.all([
-    fetch(`${INSTANCE_URL}/api/v1/statuses/${id}`),
-    fetch(`${INSTANCE_URL}/api/v1/statuses/${id}/context`)
-  ]);
-
-  if (!statusRes.ok) throw new Error("Failed to fetch status");
-  const status = await statusRes.json();
-  const context = contextRes.ok ? await contextRes.json() : { descendants: [] };
-  return { status, context };
+async function fetchRawStatus(id) {
+  const res = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch status (${res.status})`);
+  return res.json();
 }
 
 export async function fetchPostById(id) {
   try {
-    const { status, context } = await fetchRawStatusAndContext(id);
+    const status = await fetchRawStatus(id);
     const post = parseMastodonStatus(status);
-    const thread = buildDocumentThreadChain(status, context.descendants || []);
-
-    if (thread.length > 0) {
-      const chunks = thread
-        .map(reply => statusContentToMarkdown(reply, { removeTags: false }))
-        .filter(Boolean);
-      if (chunks.length > 0) {
-        post.markdown = [post.markdown, ...chunks].filter(Boolean).join('\n\n');
-      }
-      post.threadChunkIds = thread.map(reply => reply.id);
-      post.threadLength = thread.length + 1;
-    } else {
-      post.threadChunkIds = [];
-      post.threadLength = 1;
-    }
-
+    const { textStatuses } = await fetchDocumentStructure(id, {
+      instanceUrl: INSTANCE_URL,
+      accountId: status.account?.id
+    });
+    const chunks = textStatuses.map(reply => statusContentToMarkdown(reply, { removeTags: false }));
+    post.markdown = [post.markdown, ...chunks].filter(Boolean).join('\n\n');
+    post.threadChunkIds = textStatuses.map(reply => reply.id);
+    post.threadLength = textStatuses.length + 1;
     return post;
   } catch (err) {
     console.error(`Failed to fetch post ${id}:`, err);
@@ -125,13 +71,15 @@ export async function fetchPostById(id) {
 
 export async function fetchPostComments(id) {
   try {
-    const { status, context } = await fetchRawStatusAndContext(id);
-    const descendants = context.descendants || [];
-    const documentThread = buildDocumentThreadChain(status, descendants);
-    const chunkIds = new Set(documentThread.map(reply => String(reply.id)));
-
-    return descendants
-      .filter(reply => !chunkIds.has(String(reply.id)))
+    const status = await fetchRawStatus(id);
+    const contextRes = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}/context`);
+    if (!contextRes.ok) throw new Error('Failed to fetch comments');
+    const context = await contextRes.json();
+    return (context.descendants || [])
+      .filter(reply => !(
+        String(reply.account?.id || '') === String(status.account?.id || '')
+        && internalStatusKind(reply)
+      ))
       .map(reply => ({
         id: reply.id,
         url: reply.url,
@@ -170,17 +118,20 @@ export function parseMastodonStatus(status) {
   const allTags = (status.tags || []).map(t => t.name);
 
   const categoryTags = [
-    "blog", "research", "page", "link", "tmp", "draft",
+    "blog", "research", "page", "link", "personal", "개인", "tmp", "draft",
     "블로그", "연구", "페이지", "링크", "임시", "temp"
   ];
   const tmpTags = ["tmp", "draft", "임시", "temp"];
   const pageTags = ["page", "link", "페이지", "링크"];
+  const personalTags = ["personal", "개인"];
 
   let category = "blog";
   if (allTags.some(t => tmpTags.includes(t.toLowerCase()))) {
     category = "tmp";
   } else if (allTags.some(t => pageTags.includes(t.toLowerCase()))) {
     category = "page";
+  } else if (allTags.some(t => personalTags.includes(t.toLowerCase()))) {
+    category = "personal";
   } else if (allTags.some(t => ["research", "연구"].includes(t.toLowerCase()))) {
     category = "research";
   } else if (allTags.some(t => ["blog", "블로그"].includes(t.toLowerCase()))) {
@@ -189,7 +140,10 @@ export function parseMastodonStatus(status) {
 
   const isDraft = category === "tmp" || allTags.some(t => tmpTags.includes(t.toLowerCase()));
   const displayTags = allTags.filter(t => !categoryTags.includes(t.toLowerCase()));
-  let markdownText = statusContentToMarkdown(status, { removeTags: true });
+  // OAuth editing supplies raw Mastodon /source Markdown; display HTML is lossy.
+  let markdownText = typeof status.sulog_source_text === 'string'
+    ? status.sulog_source_text
+    : statusContentToMarkdown(status, { removeTags: true });
 
   let title = "";
   if (status.spoiler_text && status.spoiler_text.trim().length > 0) {

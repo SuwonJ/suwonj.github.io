@@ -1,9 +1,10 @@
-import { stripMetadataTags } from './editor-tools.js?v=20';
+import { stripMetadataTags } from './editor-tools.js?v=21';
+import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=21';
+
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 
 export const REDIRECT_URI = window.location.origin + (window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/');
 const SCOPES = "read write";
-const THREAD_MARKER = "\u2063\u2063";
 const FALLBACK_MAX_CHARACTERS = 500;
 const THREAD_SAFETY_MARGIN = 12;
 let cachedMaxCharacters = null;
@@ -350,7 +351,7 @@ async function splitStatusText(statusText) {
   return chunks;
 }
 
-async function rawPostStatus({ statusText, spoilerText, mediaIds = [], inReplyToId = null }) {
+async function rawPostStatus({ statusText, spoilerText, mediaIds = [], inReplyToId = null, visibility = 'public', idempotencyKey = null }) {
   const token = getStoredToken();
   if (!token) throw new Error("로그인이 필요합니다.");
 
@@ -358,6 +359,7 @@ async function rawPostStatus({ statusText, spoilerText, mediaIds = [], inReplyTo
   body.set("status", statusText);
   if (spoilerText) body.set("spoiler_text", spoilerText);
   if (inReplyToId) body.set("in_reply_to_id", String(inReplyToId));
+  body.set("visibility", visibility);
   mediaIds.forEach(id => body.append("media_ids[]", id));
 
   const res = await fetch(`${INSTANCE_URL}/api/v1/statuses`, {
@@ -365,6 +367,7 @@ async function rawPostStatus({ statusText, spoilerText, mediaIds = [], inReplyTo
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/x-www-form-urlencoded",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: body.toString(),
   });
@@ -404,157 +407,217 @@ async function rawDeleteStatus(id) {
   return await res.json();
 }
 
-function htmlTextStartsWithThreadMarker(status) {
-  const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
-  return (doc.body.textContent || '').trimStart().startsWith(THREAD_MARKER);
+// The protocol is append-only for media. Text statuses may still be edited in place.
+function sourceText(status) {
+  return removeInternalMarker(statusPlainText(status));
 }
 
-function statusContentToPlainText(status) {
-  const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
-  doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-  doc.querySelectorAll('p').forEach(p => p.insertAdjacentText('afterend', '\n\n'));
-  return (doc.body.textContent || '')
-    .split(THREAD_MARKER).join('')
-    .replace(/\r\n?/g, '\n')
-    .trim();
+function selectedVisibility() {
+  return document.getElementById('write-visibility')?.value || 'public';
 }
 
-function normalizeThreadText(text) {
-  return String(text || '').replace(/\r\n?/g, '\n').trim();
+function vaultVisibility(rootVisibility) {
+  // Do not use direct/private mentions: they can be omitted from context and
+  // direct visibility requires an explicit recipient.
+  return rootVisibility === 'private' || rootVisibility === 'direct' ? 'private' : 'unlisted';
 }
 
-async function fetchThreadChain(rootId, accountId = null, { strict = false } = {}) {
-  const token = getStoredToken();
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(`${INSTANCE_URL}/api/v1/statuses/${rootId}/context`, { headers });
-  if (!res.ok) {
-    if (strict) throw new Error(`타래를 불러오지 못했습니다. (${res.status}) 잠시 후 다시 시도해 주세요.`);
-    return [];
+function mediaGroups(items) {
+  const groups = [];
+  let imageGroup = [];
+  const flush = () => {
+    if (imageGroup.length) groups.push(imageGroup);
+    imageGroup = [];
+  };
+  for (const item of items) {
+    if (item.type === 'image') {
+      imageGroup.push(item);
+      if (imageGroup.length === 4) flush();
+    } else {
+      flush();
+      groups.push([item]); // video, audio, GIF are not mixed with images
+    }
   }
-  const context = await res.json();
-  const descendants = context.descendants || [];
-  const chain = [];
-  let parentId = String(rootId);
-  const used = new Set();
-
-  while (true) {
-    const candidates = descendants
-      .filter(status => !used.has(String(status.id)))
-      .filter(status => String(status.in_reply_to_id || '') === parentId)
-      .filter(status => !accountId || String(status.account?.id || '') === String(accountId))
-      .filter(status => htmlTextStartsWithThreadMarker(status))
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    if (!candidates.length) break;
-    const next = candidates[0];
-    chain.push(next);
-    used.add(String(next.id));
-    parentId = String(next.id);
-  }
-  return chain;
+  flush();
+  return groups;
 }
 
-export async function postStatus({ statusText, spoilerText, mediaIds = [] }) {
-  const chunks = await splitStatusText(statusText);
-  const root = await rawPostStatus({ statusText: chunks[0], spoilerText, mediaIds });
-  let parentId = root.id;
-  const thread = [];
+function normalizedMedia(media = [], mediaIds = []) {
+  const candidates = media.length ? media : mediaIds.map(id => ({ id, type: 'image' }));
+  const unique = new Map();
+  for (const value of candidates) {
+    const id = typeof value === 'string' ? value : value?.id;
+    if (!id) continue;
+    unique.set(String(id), { ...(typeof value === 'object' ? value : {}), id: String(id), type: value?.type || 'image' });
+  }
+  return [...unique.values()];
+}
 
-  for (const chunk of chunks.slice(1)) {
-    const child = await rawPostStatus({
-      statusText: `${THREAD_MARKER}${chunk}`,
-      inReplyToId: parentId
+function newIdempotencyKey() {
+  return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function postMediaVaults({ rootId, media, visibility, createdIds = [] }) {
+  const results = [];
+  for (const group of mediaGroups(media)) {
+    const vault = await rawPostStatus({
+      statusText: MEDIA_MARKER,
+      inReplyToId: rootId,
+      mediaIds: group.map(item => item.id),
+      visibility: vaultVisibility(visibility),
+      idempotencyKey: newIdempotencyKey()
     });
-    parentId = child.id;
-    thread.push({ id: String(child.id), text: chunk });
+    createdIds.push(String(vault.id));
+    results.push(vault);
   }
-
-  return { ...root, sulog_thread_chunk_ids: thread.map(chunk => chunk.id), sulog_thread_chunks: thread };
+  return results;
 }
 
-export async function updateStatus({ id, statusText, spoilerText, mediaIds = [], existingThread = null }) {
-  const chunks = await splitStatusText(statusText);
-  let existing;
-  if (Array.isArray(existingThread)) {
-    existing = existingThread
-      .filter(chunk => chunk && chunk.id)
-      .map(chunk => ({ id: String(chunk.id), sourceText: normalizeThreadText(chunk.text) }));
-  } else {
-    const account = await fetchAccountInfo();
-    const chain = await fetchThreadChain(id, account?.id || null, { strict: true });
-    existing = chain.map(status => ({
-      id: String(status.id),
-      sourceText: statusContentToPlainText(status)
-    }));
-  }
+async function loadDocument(root) {
+  const structure = await fetchDocumentStructure(root.id, {
+    instanceUrl: INSTANCE_URL,
+    accountId: root.account?.id,
+    token: getStoredToken()
+  });
+  return structure;
+}
 
-  const root = await rawUpdateStatus({ id, statusText: chunks[0], spoilerText, mediaIds });
+async function getStatusForEdit(id) {
+  const token = getStoredToken();
+  const res = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`문서 원본을 불러오지 못했습니다. (${res.status})`);
+  return res.json();
+}
+
+function attachDocumentInfo(root, textStatuses, mediaVaults) {
+  const chunks = textStatuses.map(status => ({ id: String(status.id), text: sourceText(status) }));
+  return {
+    ...root,
+    sulog_thread_chunk_ids: chunks.map(chunk => chunk.id),
+    sulog_thread_chunks: chunks,
+    sulog_media_vaults: mediaVaults,
+    sulog_document_media: mediaDescriptors([root, ...mediaVaults])
+  };
+}
+
+export async function postStatus({ statusText, spoilerText, mediaIds = [], media = [], visibility = null }) {
+  const chunks = await splitStatusText(statusText);
+  const chosenVisibility = visibility || selectedVisibility();
+  const inputMedia = normalizedMedia(media, mediaIds);
+  const created = [];
+  let root;
+  try {
+    root = await rawPostStatus({
+      statusText: chunks[0],
+      spoilerText,
+      visibility: chosenVisibility,
+      idempotencyKey: newIdempotencyKey()
+    });
+    created.push(String(root.id));
+    let parentId = root.id;
+    const textStatuses = [];
+    for (const chunk of chunks.slice(1)) {
+      const child = await rawPostStatus({
+        statusText: `${THREAD_MARKER}${chunk}`,
+        inReplyToId: parentId,
+        visibility: chosenVisibility,
+        idempotencyKey: newIdempotencyKey()
+      });
+      created.push(String(child.id));
+      textStatuses.push(child);
+      parentId = child.id;
+    }
+    const mediaVaults = await postMediaVaults({
+      rootId: root.id, media: inputMedia, visibility: chosenVisibility, createdIds: created
+    });
+    return attachDocumentInfo(root, textStatuses, mediaVaults);
+  } catch (error) {
+    // A failed new document must not leave incomplete public posts behind.
+    for (const id of created.reverse()) {
+      try { await rawDeleteStatus(id); } catch (cleanupError) {
+        console.error('Could not roll back status', id, cleanupError);
+      }
+    }
+    throw error;
+  }
+}
+
+export async function updateStatus({ id, statusText, spoilerText, mediaIds = [], media = [] }) {
+  const chunks = await splitStatusText(statusText);
+  const original = await getStatusForEdit(id);
+  const { textStatuses: existing, mediaVaults: existingVaults } = await loadDocument(original);
+  const alreadyAttached = new Set(mediaDescriptors([original, ...existingVaults]).map(item => item.id));
+  const desiredMedia = normalizedMedia(media, mediaIds);
+  const additionalMedia = desiredMedia.filter(item => !alreadyAttached.has(item.id));
+
+  // Preserve legacy root attachments. On new documents all media is vault-backed.
+  const root = await rawUpdateStatus({
+    id, statusText: chunks[0], spoilerText,
+    mediaIds: (original.media_attachments || []).map(item => item.id)
+  });
   const desired = chunks.slice(1);
   const common = Math.min(existing.length, desired.length);
-  const finalThread = [];
+  const finalText = [];
 
   for (let i = 0; i < common; i += 1) {
-    if (normalizeThreadText(existing[i].sourceText) !== normalizeThreadText(desired[i])) {
-      await rawUpdateStatus({
-        id: existing[i].id,
+    let status = existing[i];
+    if (sourceText(status) !== desired[i]) {
+      status = await rawUpdateStatus({
+        id: status.id,
         statusText: `${THREAD_MARKER}${desired[i]}`,
         spoilerText: '',
         mediaIds: []
       });
     }
-    finalThread.push({ id: existing[i].id, text: desired[i] });
+    finalText.push(status);
   }
 
-  let parentId = common > 0 ? existing[common - 1].id : id;
+  let parentId = common ? existing[common - 1].id : id;
   for (let i = common; i < desired.length; i += 1) {
     const child = await rawPostStatus({
       statusText: `${THREAD_MARKER}${desired[i]}`,
-      inReplyToId: parentId
+      inReplyToId: parentId,
+      visibility: original.visibility || 'public',
+      idempotencyKey: newIdempotencyKey()
     });
     parentId = child.id;
-    finalThread.push({ id: String(child.id), text: desired[i] });
+    finalText.push(child);
   }
-
+  // Delete only surplus tail chunks. Internal vault statuses remain untouched.
   for (let i = existing.length - 1; i >= desired.length; i -= 1) {
     await rawDeleteStatus(existing[i].id);
   }
-
-  return {
-    ...root,
-    sulog_thread_chunk_ids: finalThread.map(chunk => chunk.id),
-    sulog_thread_chunks: finalThread
-  };
+  const newVaults = await postMediaVaults({
+    rootId: id,
+    media: additionalMedia,
+    visibility: original.visibility || 'public'
+  });
+  return attachDocumentInfo(root, finalText, [...existingVaults, ...newVaults]);
 }
 
 export async function deleteStatus(id) {
-  const account = await fetchAccountInfo();
-  const children = await fetchThreadChain(id, account?.id || null, { strict: true });
-  for (let i = children.length - 1; i >= 0; i -= 1) {
-    await rawDeleteStatus(children[i].id);
-  }
+  const root = await getStatusForEdit(id);
+  const { textStatuses, mediaVaults } = await loadDocument(root);
+  for (const child of [...textStatuses].reverse()) await rawDeleteStatus(child.id);
+  for (const vault of [...mediaVaults].reverse()) await rawDeleteStatus(vault.id);
   return rawDeleteStatus(id);
 }
 
-async function enrichStatusWithThread(status, accountId) {
-  if (!status || Number(status.replies_count || 0) < 1) return status;
-  const chain = await fetchThreadChain(status.id, accountId, { strict: true });
-  if (!chain.length) return { ...status, sulog_thread_chunks: [], sulog_thread_chunk_ids: [] };
-  const chunks = chain.map(child => ({
-    id: String(child.id),
-    text: statusContentToPlainText(child)
-  }));
+async function enrichStatusWithThread(status) {
+  if (!status) return status;
+  const { textStatuses, mediaVaults } = await loadDocument(status);
+  const result = attachDocumentInfo(status, textStatuses, mediaVaults);
   return {
-    ...status,
+    ...result,
     sulog_root_content: status.content,
-    content: [status.content, ...chain.map(child => child.content)].join('<p></p>'),
-    sulog_thread_chunk_ids: chunks.map(chunk => chunk.id),
-    sulog_thread_chunks: chunks
+    content: [status.content, ...textStatuses.map(child => child.content)].join('<p></p>')
   };
 }
 
-// 목록에서는 타래를 펼치지 않고, 사용자가 실제 편집을 시작할 때 한 글만 지연 로드한다.
 export async function fetchStatusWithThread(status) {
-  if (!status || Number(status.replies_count || 0) < 1) return status;
-  return enrichStatusWithThread(status, status.account?.id || null);
+  return enrichStatusWithThread(status);
 }
 
 export async function fetchMyStatuses({ limit = 40, maxId = null } = {}) {
@@ -591,7 +654,10 @@ export async function fetchEditableStatus(status) {
   }));
   if (sources.every(Boolean)) {
     const tags = (combined.tags || []).map(tag => tag.name);
-    combined.sulog_source_text = sources.map(source => stripMetadataTags(source.text.split(THREAD_MARKER).join(''), tags)).join('\n\n');
+    combined.sulog_source_text = sources.map((source, index) => {
+      const text = index === 0 ? source.text : removeInternalMarker(source.text);
+      return index === 0 ? stripMetadataTags(text, tags) : text;
+    }).join('\n\n');
   }
   return combined;
 }

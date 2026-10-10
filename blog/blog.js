@@ -1,3 +1,6 @@
+const IS_PERSONAL = window.location.pathname.startsWith('/log/');
+const BLOG_ROUTE = IS_PERSONAL ? '/log/' : '/blog/';
+
 import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
 import { fetchPostsByTag, fetchPostById } from "../components/mastodon.js";
@@ -43,7 +46,7 @@ async function renderPost(id, container) {
     const dateHtml = post.date ? `<span>${post.date}</span>` : "";
     const tags = post.tags || [];
     const tagHtml = tags.length > 0 
-      ? tags.map(t => `<a href="/blog/?tags=${t}" class="tag" style="text-decoration:none;">#${t}</a>`).join(" ")
+      ? tags.map(t => `<a href="${BLOG_ROUTE}?tags=${t}" class="tag" style="text-decoration:none;">#${t}</a>`).join(" ")
       : "";
 
     const maximuxBadgeHtml = `
@@ -174,7 +177,7 @@ async function renderPost(id, container) {
     const breadcrumb = document.getElementById("nav-breadcrumb");
     if (breadcrumb) {
       let breadcrumbHtml = `
-        <a href="/blog/">
+        <a href="${BLOG_ROUTE}">
           <span class="desktop-text">블로그</span>
           <span class="mobile-text">블</span>
         </a> 
@@ -266,9 +269,9 @@ async function renderPostList(container) {
     if (breadcrumb) breadcrumb.innerHTML = "";
 
     const titleEl = document.getElementById("page-title");
-    if (titleEl) titleEl.innerText = "블로그";
+    if (titleEl) titleEl.innerText = IS_PERSONAL ? '개인 기록' : '블로그';
 
-    const allPosts = await fetchPostsByTag("blog");
+    const allPosts = await fetchPostsByTag(IS_PERSONAL ? 'personal' : 'blog');
     const posts = allPosts.filter(p => !p.isDraft);
 
     if (posts.length === 0) {
@@ -331,7 +334,7 @@ async function renderPostList(container) {
     const listItems = filteredPosts.map(post => `
       <li style="margin-bottom: 1.2rem; list-style: none;">
         <div style="display:flex; justify-content:space-between; align-items:baseline; gap:1rem;">
-          <a href="/blog/?id=${post.id}" style="color:var(--text-color); text-decoration:none; font-weight:bold; font-size:1.1rem;" class="blog-post-link">
+          <a href="${BLOG_ROUTE}?id=${post.id}" style="color:var(--text-color); text-decoration:none; font-weight:bold; font-size:1.1rem;" class="blog-post-link">
             ${post.title}
           </a>
           <span style="font-size:0.85rem; color:var(--breadcrumb-color, #888); font-family:monospace; white-space:nowrap;">
