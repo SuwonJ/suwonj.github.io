@@ -914,7 +914,7 @@
     <!-- Header -->
     <header class="app-header">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <button type="button" id="btn-toggle-sidebar" class="btn" title="게시글 목록 열기/닫기" style="padding: 0.35rem 0.6rem;">
+            <button type="button" aria-controls="posts-sidebar" id="btn-toggle-sidebar" class="btn" title="게시글 목록 열기/닫기" style="padding: 0.35rem 0.6rem;">
                 <span id="icon-toggle-sidebar" class="material-symbols-outlined" style="font-size: 19px;">menu_open</span>
                 <span class="btn-text" style="font-size: 0.8rem;">글 목록</span>
                 <span id="posts-count-badge" class="badge" style="display: none; padding: 0.1rem 0.4rem; font-size: 0.7rem;">0</span>
@@ -1074,7 +1074,7 @@
         <span id="toast-message">알림 메시지</span>
     </div>
 
-    <script type="module" src="./write.js?v=22"></script>
+    <script type="module" src="./write.js?v=23"></script>
     <script type="module" src="./pdf.js?v=21"></script>
     <script type="module" src="./page-mode.js?v=21"></script>
 </body>
