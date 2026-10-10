@@ -1,4 +1,4 @@
-import { stripMetadataTags } from './editor-tools.js?v=20';
+import { stripMetadataTags } from './editor-tools.js?v=21';
 import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=21';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
