@@ -100,3 +100,52 @@ export function mediaDescriptors(statuses) {
     description: media.description || ''
   })));
 }
+
+
+// Mastodon's exclude_replies filters replies to OTHER accounts; replies to
+// yourself can still appear in account timelines. Only top-level statuses
+// represent Sulog documents. All TEXT/MEDIA replies belong to their root.
+export function isDocumentRootStatus(status) {
+  return Boolean(status && status.in_reply_to_id == null);
+}
+
+// Fetch enough timeline pages to return requested DOCUMENTS instead of counting
+// internal reply chunks against the listing limit.
+export async function fetchDocumentRoots({
+  instanceUrl,
+  accountId,
+  token = null,
+  tag = null,
+  limit = 40,
+  maxId = null
+} = {}) {
+  const roots = [];
+  let cursor = maxId;
+  const seenCursors = new Set();
+
+  for (let page = 0; page < 20 && roots.length < limit; page++) {
+    const url = new URL(`${instanceUrl}/api/v1/accounts/${accountId}/statuses`);
+    url.searchParams.set('exclude_reblogs', 'true');
+    url.searchParams.set('exclude_replies', 'true');
+    url.searchParams.set('limit', '40');
+    if (tag) url.searchParams.set('tagged', tag);
+    if (cursor) url.searchParams.set('max_id', String(cursor));
+
+    const response = await fetch(url.toString(), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!response.ok) {
+      throw new Error(`게시글 목록을 불러오지 못했습니다. (${response.status})`);
+    }
+    const statuses = await response.json();
+    if (!Array.isArray(statuses)) throw new Error('잘못된 게시글 목록 응답입니다.');
+    roots.push(...statuses.filter(isDocumentRootStatus).slice(0, limit - roots.length));
+
+    if (statuses.length < 40 || roots.length >= limit) break;
+    const nextCursor = String(statuses[statuses.length - 1]?.id || '');
+    if (!nextCursor || seenCursors.has(nextCursor)) break;
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  }
+  return roots;
+}
