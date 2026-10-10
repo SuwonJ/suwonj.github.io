@@ -1,5 +1,5 @@
 import { stripMetadataTags } from './editor-tools.js?v=21';
-import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=21';
+import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, internalStatusKind, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=21';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 
@@ -623,17 +623,38 @@ export async function fetchStatusWithThread(status) {
 export async function fetchMyStatuses({ limit = 40, maxId = null } = {}) {
   const token = getStoredToken();
   if (!token) throw new Error("로그인이 필요합니다.");
-
   const user = await fetchAccountInfo();
-  if (!user || !user.id) throw new Error("사용자 정보를 불러올 수 없습니다.");
+  if (!user?.id) throw new Error("사용자 정보를 불러올 수 없습니다.");
 
-  let url = `${INSTANCE_URL}/api/v1/accounts/${user.id}/statuses?exclude_reblogs=true&exclude_replies=true&limit=${limit}`;
-  if (maxId) url += `&max_id=${maxId}`;
+  // exclude_replies only excludes replies to OTHER accounts. Self-replies
+  // are text/media chunks, not standalone Sulog documents.
+  const roots = [];
+  let cursor = maxId;
+  const seenCursors = new Set();
+  for (let page = 0; page < 20 && roots.length < limit; page++) {
+    const url = new URL(`${INSTANCE_URL}/api/v1/accounts/${user.id}/statuses`);
+    url.searchParams.set("exclude_reblogs", "true");
+    url.searchParams.set("exclude_replies", "true");
+    url.searchParams.set("limit", "40");
+    if (cursor) url.searchParams.set("max_id", String(cursor));
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error(`게시글 목록 조회 실패: ${await response.text()}`);
+    const statuses = await response.json();
+    if (!Array.isArray(statuses)) throw new Error("잘못된 Mastodon 목록 응답입니다.");
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Failed to fetch statuses: ${await res.text()}`);
+    roots.push(...statuses
+      .filter(status => status.in_reply_to_id == null && internalStatusKind(status) == null)
+      .slice(0, limit - roots.length));
 
-  return await res.json();
+    if (statuses.length < 40 || roots.length >= limit) break;
+    const nextCursor = String(statuses[statuses.length - 1]?.id || "");
+    if (!nextCursor || seenCursors.has(nextCursor)) break;
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  }
+  return roots;
 }
 
 // Editing must use the authenticated source endpoint, not lossy display HTML.

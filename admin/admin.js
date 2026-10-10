@@ -11,7 +11,7 @@ import {
   fetchMyStatuses,
   fetchEditableStatus,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js?v=21";
+} from "../components/mastodon_oauth.js?v=22";
 
 import { parseMastodonStatus } from "../components/mastodon.js?v=21";
 import { parsePreview, commitPreview } from '../assets/preview.js?v=21';
