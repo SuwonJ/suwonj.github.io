@@ -97,7 +97,7 @@ async function registerServiceWorker() {
 installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
-const { adminReady } = await import('../admin/admin.js?v=21');
+const { adminReady } = await import('../admin/admin.js?v=22');
 await adminReady;
 updateConnectionState();
 window.addEventListener('online', updateConnectionState);
