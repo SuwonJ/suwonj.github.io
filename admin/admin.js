@@ -11,9 +11,9 @@ import {
   fetchMyStatuses,
   fetchEditableStatus,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js?v=20";
+} from "../components/mastodon_oauth.js?v=21";
 
-import { parseMastodonStatus } from "../components/mastodon.js?v=20";
+import { parseMastodonStatus } from "../components/mastodon.js?v=21";
 import { parsePreview, commitPreview } from '../assets/preview.js?v=20';
 import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=20';
 import { formatText } from '../components/editor-tools.js?v=20';
@@ -21,7 +21,7 @@ import { formatText } from '../components/editor-tools.js?v=20';
 const initialMode = localStorage.getItem('sulog_write_editor_mode') || 'split';
 document.body.classList.add(`write-mode-${['split', 'source', 'live', 'preview'].includes(initialMode) ? initialMode : 'split'}`);
 let selectedCategory = "blog"; // "blog" | "research" | "tmp"
-let uploadedMediaIds = [];
+let documentMedia = [];
 let autoSaveTimer = null;
 let previewDebounceTimer = null;
 let previewRenderVersion = 0;
@@ -292,7 +292,8 @@ function setupDragAndDrop() {
         if (session !== documentSession) { showToast('이전 문서의 업로드가 완료되었습니다. 현재 글에는 삽입하지 않았습니다.', 'info'); return; }
         const name = file.name.replace(/[\[\]\(\)\\]/g, '\\$&');
         const text = media.type === 'image' ? `\n![${name}](${media.url})\n` : `\n[첨부파일: ${name}](${media.url})\n`;
-        uploadedMediaIds.push(media.id);
+        documentMedia.push({ id: String(media.id), url: media.url || '', type: media.type || 'unknown', description: media.description || '' });
+        changed(); triggerAutoSave();
         if (bookmark) bookmark.insert(text);
         else { textarea.setRangeText(text, Math.min(offset, textarea.value.length), Math.min(offset, textarea.value.length), 'end'); offset = textarea.selectionEnd; textarea.dispatchEvent(new Event('input', { bubbles: true })); }
       }
@@ -349,7 +350,7 @@ function setupPublishing() {
     }
     const publishingSession = documentSession, publishingRevision = revision;
     const publishingPost = currentEditingPost;
-    const publishingMedia = [...uploadedMediaIds];
+    const publishingMedia = [...documentMedia];
     const publishingCategory = selectedCategory;
     const fullStatusText = `${markdownVal}\n\n${formattedTags}`;
 
@@ -364,10 +365,7 @@ function setupPublishing() {
           id: publishingPost.id,
           statusText: fullStatusText,
           spoilerText: titleVal,
-          mediaIds: publishingMedia,
-          existingThread: publishingPost.threadChecked
-            ? (publishingPost.threadChunks || [])
-            : null
+          media: publishingMedia
         });
 
         const successMsg = selectedCategory === "tmp"
@@ -387,6 +385,7 @@ function setupPublishing() {
           ...parsed,
           rawStatus: updated,
           threadChunks: updated.sulog_thread_chunks || [],
+          documentMedia: updated.sulog_document_media || publishingMedia,
           threadChecked: true
         };
         document.getElementById("editing-post-title").innerText = parsed.title;
@@ -404,7 +403,7 @@ function setupPublishing() {
         const result = await postStatus({
           statusText: fullStatusText,
           spoilerText: titleVal,
-          mediaIds: publishingMedia
+          media: publishingMedia
         });
 
         showToast(
@@ -417,7 +416,7 @@ function setupPublishing() {
         // 임시저장 데이터 초기화
         const cleared = publishingSession === documentSession && publishingRevision === revision && await clearDraft(publishingSession, publishingRevision);
         if (!cleared && publishingSession === documentSession) {
-          currentEditingPost = { ...parseMastodonStatus(result), rawStatus: result, threadChunks: result.sulog_thread_chunks || [], threadChecked: true };
+          currentEditingPost = { ...parseMastodonStatus(result), rawStatus: result, threadChunks: result.sulog_thread_chunks || [], documentMedia: result.sulog_document_media || publishingMedia, threadChecked: true };
           document.getElementById('edit-mode-banner').style.display = 'flex';
           document.getElementById('editing-post-title').textContent = titleVal;
           document.getElementById('editing-post-id').textContent = result.id;
@@ -681,7 +680,7 @@ async function startEditingPost(post) {
     const rawStatus = await fetchEditableStatus(post.rawStatus);
     if (request !== openRequest) return;
     Object.assign(post, parseMastodonStatus(rawStatus), { rawStatus,
-      threadChunks: rawStatus.sulog_thread_chunks || [], threadChecked: true });
+      threadChunks: rawStatus.sulog_thread_chunks || [], documentMedia: rawStatus.sulog_document_media || [], threadChecked: true });
   } catch (error) { if (request === openRequest) showToast(`본문을 불러오지 못했습니다: ${error.message}`, 'error'); return; }
   const draft = await readDraft(post.id).catch(() => null);
   if (request !== openRequest || !(await flushBeforeSwitch()) || request !== openRequest) return;
@@ -695,12 +694,19 @@ async function startEditingPost(post) {
 
   // 카테고리 동기화 (blog, research, tmp)
   selectedCategory = (post.category === "tmp" || post.isDraft) ? "tmp" : (post.category || "blog");
+  const visibilitySelector = document.getElementById('write-visibility');
+  if (visibilitySelector && post.visibility) {
+    visibilitySelector.value = post.visibility;
+    visibilitySelector.dispatchEvent(new Event('change', { bubbles: true }));
+  }
   document.querySelectorAll(".cat-opt").forEach(opt => {
     opt.classList.toggle("active", opt.getAttribute("data-cat") === selectedCategory);
   });
 
-  // 첨부 미디어 ID 복원
-  uploadedMediaIds = (post.media || []).map(m => m.id).filter(Boolean);
+  // Legacy root attachments and new vault attachments are both retained on edit.
+  documentMedia = (post.documentMedia?.length ? post.documentMedia : post.media || []).map(m => ({
+    id: String(m.id), url: m.url || m.preview_url || '', type: m.type || 'unknown', description: m.description || ''
+  })).filter(m => m.id);
 
   // 수정 모드 배너 활성화
   const editBanner = document.getElementById("edit-mode-banner");
@@ -755,7 +761,7 @@ async function startNewPost({ skipSave = false } = {}) {
   replaceBody("");
   document.getElementById("input-tags").value = "";
   
-  uploadedMediaIds = [];
+  documentMedia = [];
 
   // 기본 카테고리: blog
   selectedCategory = "blog";
@@ -834,7 +840,7 @@ async function saveDraft() {
   if (!dirty) return true;
   const session = documentSession, version = revision, id = currentEditingPost?.id || null;
   const draft = { id, category: selectedCategory, title: document.getElementById('input-title').value,
-    tags: document.getElementById('input-tags').value, markdown: bodyValue(), mediaIds: [...uploadedMediaIds],
+    tags: document.getElementById('input-tags').value, markdown: bodyValue(), media: documentMedia.map(item => ({ ...item })),
     editingPost: currentEditingPost ? { id, title: currentEditingPost.title, category: selectedCategory, threadChecked: false } : null,
     savedAt: Date.now(), revision: version };
   saveChain = saveChain.catch(() => {}).then(async () => {
@@ -857,7 +863,7 @@ function applyDraft(draft) {
   document.getElementById('input-title').value = draft.title || '';
   document.getElementById('input-tags').value = draft.tags || '';
   replaceBody(draft.markdown || '');
-  uploadedMediaIds = draft.mediaIds || uploadedMediaIds;
+  documentMedia = draft.media || (draft.mediaIds || []).map(id => ({ id: String(id), type: 'image' }));
   selectedCategory = draft.category || 'blog';
   document.querySelectorAll('.cat-opt').forEach(opt => opt.classList.toggle('active', opt.dataset.cat === selectedCategory));
   updatePublishButtonState();
@@ -884,7 +890,7 @@ async function clearDraft(expectedSession = documentSession, expectedRevision = 
   if (expectedSession !== documentSession || expectedRevision !== revision) return false;
   dirty = false; documentSession++;
   document.getElementById('input-title').value = '';
-  document.getElementById('input-tags').value = ''; replaceBody(''); uploadedMediaIds = [];
+  document.getElementById('input-tags').value = ''; replaceBody(''); documentMedia = [];
   updatePublishButtonState(); updatePreview();
   document.getElementById('status-draft').textContent = '자동 저장 준비됨';
   return true;
