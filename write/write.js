@@ -1,4 +1,4 @@
-import { dbGet, dbSet } from '../components/drafts.js?v=21';
+import { dbGet, dbSet } from '../components/drafts.js?v=22';
 const ACCOUNT_KEY = 'mastodon-account';
 const VISIBILITY_KEY = 'sulog_write_visibility';
 const mode = localStorage.getItem('sulog_write_editor_mode') || 'split';
@@ -97,7 +97,7 @@ async function registerServiceWorker() {
 installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
-const { adminReady } = await import('../admin/admin.js?v=21');
+const { adminReady } = await import('../admin/admin.js?v=22');
 await adminReady;
 updateConnectionState();
 window.addEventListener('online', updateConnectionState);
