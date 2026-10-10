@@ -151,18 +151,27 @@ async function initAuth() {
 
 function setupCategorySelector() {
   const opts = document.querySelectorAll(".cat-opt");
+  const syncPressed = () => opts.forEach(opt => opt.setAttribute('aria-pressed', String(opt.classList.contains('active'))));
   opts.forEach(opt => {
-    opt.setAttribute('role', 'button'); opt.tabIndex = 0;
-    opt.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); opt.click(); } });
+    if (opt.tagName !== 'BUTTON') {
+      opt.setAttribute('role', 'button'); opt.tabIndex = 0;
+      opt.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); opt.click(); } });
+    }
     opt.addEventListener("click", (e) => {
       opts.forEach(o => o.classList.remove("active"));
       e.currentTarget.classList.add("active");
+      syncPressed();
       selectedCategory = e.currentTarget.getAttribute("data-cat");
       updatePublishButtonState();
       changed();
       triggerPreviewUpdate();
       triggerAutoSave();
     });
+  });
+  syncPressed();
+  const group = document.querySelector('.cat-selector');
+  if (group) new MutationObserver(syncPressed).observe(group, {
+    subtree: true, attributes: true, attributeFilter: ['class']
   });
 }
 
@@ -458,6 +467,25 @@ function setupSidebar() {
   const btnNewPost = document.getElementById("btn-new-post");
   const btnCancelEdit = document.getElementById("btn-cancel-edit");
   const btnDeleteCurrent = document.getElementById("btn-delete-current");
+  const scrim = document.getElementById('sidebar-scrim');
+  const isMobile = () => matchMedia('(max-width: 1000px)').matches;
+  const syncSidebar = () => {
+    const opened = !sidebar.classList.contains('collapsed');
+    btnToggle?.setAttribute('aria-expanded', String(opened));
+    scrim?.classList.toggle('visible', opened && isMobile());
+  };
+  const closeSidebar = () => {
+    if (!isMobile()) return;
+    sidebar.classList.add('collapsed');
+    if (iconToggle) iconToggle.innerText = 'menu';
+    localStorage.setItem('sulog_admin_sidebar_open', 'false');
+  };
+  scrim?.addEventListener('click', closeSidebar);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && isMobile() && !sidebar.classList.contains('collapsed')) closeSidebar();
+  });
+  new MutationObserver(syncSidebar).observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+  window.addEventListener('resize', syncSidebar);
 
   // 사이드바 기본 열림/닫힘 상태 복원 (기본값: 열림)
   const savedState = localStorage.getItem("sulog_admin_sidebar_open");
@@ -476,6 +504,7 @@ function setupSidebar() {
       localStorage.setItem("sulog_admin_sidebar_open", isCollapsed ? "false" : "true");
     });
   }
+  syncSidebar();
 
   // 새로고침 버튼
   if (btnRefresh) {
@@ -568,13 +597,11 @@ function renderPostsList() {
 
   let filtered = postsCache;
 
-  // 1. 카테고리 필터링 (all | blog | research | tmp)
-  if (activeFilter === "blog") {
-    filtered = filtered.filter(p => p.category === "blog");
-  } else if (activeFilter === "research") {
-    filtered = filtered.filter(p => p.category === "research");
-  } else if (activeFilter === "tmp") {
-    filtered = filtered.filter(p => p.category === "tmp" || p.isDraft);
+  // Categories share one filter path; drafts include legacy temporary statuses.
+  if (['blog', 'research', 'personal', 'page'].includes(activeFilter)) {
+    filtered = filtered.filter(p => p.category === activeFilter);
+  } else if (activeFilter === 'tmp') {
+    filtered = filtered.filter(p => p.category === 'tmp' || p.isDraft);
   }
 
   // 2. 검색어 필터링
