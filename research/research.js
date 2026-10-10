@@ -1,6 +1,6 @@
 import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
-import { fetchPostsByTag, fetchPostById } from "../components/mastodon.js";
+import { fetchPostsByTag, fetchPostById } from "../components/mastodon.js?v=22";
 import { ensureCodeHighlighting, ensureMarkdown, ensurePdfJs, normalizeMarkdownMath } from "../components/content-dependencies.js";
 import { commentsPlaceholder, renderComments } from "../components/comments.js";
 
