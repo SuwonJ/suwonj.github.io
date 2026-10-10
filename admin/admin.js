@@ -14,9 +14,9 @@ import {
 } from "../components/mastodon_oauth.js?v=21";
 
 import { parseMastodonStatus } from "../components/mastodon.js?v=21";
-import { parsePreview, commitPreview } from '../assets/preview.js?v=20';
-import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=20';
-import { formatText } from '../components/editor-tools.js?v=20';
+import { parsePreview, commitPreview } from '../assets/preview.js?v=21';
+import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=21';
+import { formatText } from '../components/editor-tools.js?v=21';
 
 const initialMode = localStorage.getItem('sulog_write_editor_mode') || 'split';
 document.body.classList.add(`write-mode-${['split', 'source', 'live', 'preview'].includes(initialMode) ? initialMode : 'split'}`);
@@ -74,7 +74,7 @@ async function initAdminStudio() {
   window.addEventListener('pagehide', () => { saveDraft(); });
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   try {
-    const { installWriteEditor } = await import('../assets/editor.js?v=20');
+    const { installWriteEditor } = await import('../assets/editor.js?v=21');
     installWriteEditor();
   } catch (error) {
     console.error('Editor initialization failed:', error);
