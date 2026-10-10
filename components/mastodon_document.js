@@ -75,13 +75,14 @@ export async function fetchDocumentStructure(rootId, {
 
     // Avoid making an extra request for small documents. Public contexts are
     // 20 levels deep; a full context can also be truncated at the status limit.
-    if (advanced < PUBLIC_CONTEXT_DEPTH - 2 && descendants.length < 55) {
+    const possibleTruncation = token ? 4000 : 55;
+    if (advanced < PUBLIC_CONTEXT_DEPTH - 2 && descendants.length < possibleTruncation) {
       return { textStatuses, mediaVaults };
     }
     if (!advanced) {
       // No direct continuation exists in the current window. Do not silently
       // loop forever or return a partial document when the context is full.
-      if (descendants.length >= 55) {
+      if (descendants.length >= possibleTruncation) {
         throw new Error('문서 context가 잘려 타래를 복원할 수 없습니다.');
       }
       return { textStatuses, mediaVaults };
