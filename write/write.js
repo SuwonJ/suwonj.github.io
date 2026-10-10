@@ -9,18 +9,23 @@ function installVisibilityControl() {
   if (!configBar || document.getElementById('write-visibility')) return;
 
   const row = document.createElement('div');
-  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;padding:.45rem 0 0;font-size:.78rem;color:var(--text-muted);';
+  row.className = 'metadata-field visibility-control';
   row.innerHTML = `
-    <span class="material-symbols-outlined" style="font-size:16px;">visibility</span>
-    <label for="write-visibility">Mastodon 공개범위</label>
-    <select id="write-visibility" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:5px;padding:.25rem .45rem;font:inherit;">
+    <label class="field-label" for="write-visibility">공개 범위</label>
+    <select id="write-visibility">
       <option value="public">공개</option>
       <option value="unlisted">비목록</option>
       <option value="private">팔로워 전용</option>
     </select>
-    <span id="write-offline-state" style="margin-left:auto;"></span>
   `;
-  configBar.appendChild(row);
+  (configBar.querySelector('.metadata-row') || configBar).appendChild(row);
+
+  const footer = document.querySelector('.footer-connection');
+  if (footer && !document.getElementById('write-offline-state')) {
+    const status = document.createElement('span');
+    status.id = 'write-offline-state';
+    footer.prepend(status);
+  }
 
   const select = row.querySelector('#write-visibility');
   select.value = localStorage.getItem(VISIBILITY_KEY) || 'public';
@@ -73,8 +78,8 @@ function installFetchLayer() {
 function updateConnectionState() {
   const state = document.getElementById('write-offline-state');
   if (!state) return;
-  state.textContent = navigator.onLine ? '온라인' : '오프라인 · 로컬 저장 중';
-  state.style.color = navigator.onLine ? 'var(--accent-green)' : '#fbbf24';
+  if (state) state.textContent = navigator.onLine ? '온라인' : '오프라인 · 로컬 저장 중';
+  if (state) state.dataset.online = String(navigator.onLine);
 
   const server = document.getElementById('status-server');
   if (server) {
@@ -97,7 +102,7 @@ async function registerServiceWorker() {
 installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
-const { adminReady } = await import('../admin/admin.js?v=22');
+const { adminReady } = await import('../admin/admin.js?v=23');
 await adminReady;
 updateConnectionState();
 window.addEventListener('online', updateConnectionState);
