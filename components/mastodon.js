@@ -24,15 +24,23 @@ export async function fetchPostsByTag(tag) {
 }
 
 function statusContentToMarkdown(status, { removeTags = true } = {}) {
+  if (status.sulog_source_text == null && status.sulog_root_content != null) {
+    const root = statusContentToMarkdown(
+      { ...status, content: status.sulog_root_content, sulog_root_content: null },
+      { removeTags }
+    );
+    return [root, ...(status.sulog_thread_chunks || []).map(chunk => chunk.text)].join('\n\n');
+  }
   const doc = new DOMParser().parseFromString(status?.content || '', 'text/html');
-  if (removeTags) doc.querySelectorAll('a.hashtag').forEach(a => a.remove());
   doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
   doc.querySelectorAll('p').forEach(p => p.insertAdjacentText('afterend', '\n\n'));
-  const text = removeInternalMarker(doc.body.textContent || '');
-  const decoder = document.createElement('textarea');
-  decoder.innerHTML = text;
-  let markdown = decoder.value.trim();
-  if (removeTags) markdown = markdown.replace(/(^|\s)#[^\s#]+/g, '').trim();
+
+  let markdown = status.sulog_source_text ?? removeInternalMarker(doc.body.textContent || '');
+  // Only remove the final system metadata paragraph. Inline hashtags and code
+  // are authored content and must never be stripped with a broad regex.
+  if (removeTags && status.sulog_source_text == null) {
+    markdown = stripMetadataTags(markdown, (status.tags || []).map(tag => tag.name));
+  }
   return markdown;
 }
 
