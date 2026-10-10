@@ -13,7 +13,7 @@ export function formatText(cmd, selected = '') {
     from: before.length, to: before.length + (selected || placeholder).length };
 }
 export function stripMetadataTags(text, tags = []) {
-  const categories = new Set(['blog', 'research', 'page', 'link', 'tmp', 'draft', '블로그', '연구', '페이지', '링크', '임시', 'temp']);
+  const categories = new Set(['blog', 'research', 'page', 'link', 'personal', '개인', 'tmp', 'draft', '블로그', '연구', '페이지', '링크', '임시', 'temp']);
   const allowed = new Set(tags.map(tag => String(tag).toLowerCase()));
   // Metadata is a final standalone hashtag paragraph, never comments inside code.
   return text.replace(/\n\s*\n(#[\p{L}\p{N}_]+(?:[ \t]+#[\p{L}\p{N}_]+)*)[ \t\n]*$/u, (match, block) => {
