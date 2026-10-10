@@ -54,11 +54,6 @@ export async function fetchPostById(id) {
   try {
     const status = await fetchRawStatus(id);
     const post = parseMastodonStatus(status);
-    if (Number(status.replies_count || 0) < 1) {
-      post.threadChunkIds = [];
-      post.threadLength = 1;
-      return post;
-    }
     const { textStatuses } = await fetchDocumentStructure(id, {
       instanceUrl: INSTANCE_URL,
       accountId: status.account?.id
