@@ -8,13 +8,18 @@ const postsByTag = new Map();
 export async function fetchPostsByTag(tag) {
   if (postsByTag.has(tag)) return postsByTag.get(tag);
 
-  const url = `${INSTANCE_URL}/api/v1/accounts/${ACCOUNT_ID}/statuses?exclude_reblogs=true&limit=40&tagged=${encodeURIComponent(tag)}`;
+  const url = `${INSTANCE_URL}/api/v1/accounts/${ACCOUNT_ID}/statuses?exclude_reblogs=true&exclude_replies=true&limit=40&tagged=${encodeURIComponent(tag)}`;
 
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error("Failed to fetch statuses");
     const statuses = await res.json();
-    const posts = statuses.map(parseMastodonStatus);
+    // Only root statuses are documents. Continuation replies and media vaults
+    // may appear in tagged account timelines and must never become list cards.
+    const posts = statuses
+      .filter(status => status.in_reply_to_id == null)
+      .filter(status => internalStatusKind(status) == null)
+      .map(parseMastodonStatus);
     postsByTag.set(tag, posts);
     return posts;
   } catch (err) {
