@@ -1,6 +1,6 @@
 const VISIBILITY_KEY = 'sulog_write_visibility';
 
-function setPageVisibilityDefault() {
+function setUnlistedVisibilityDefault() {
   const select = document.getElementById('write-visibility');
   if (!select) return;
   select.value = 'unlisted';
@@ -16,13 +16,14 @@ function ensurePageMode() {
   let previousActive = null;
   const syncMode = () => {
     const active = document.querySelector('.cat-opt.active')?.dataset.cat || null;
-    if (active === 'page' && previousActive !== 'page') {
-      setPageVisibilityDefault();
+    if (['page', 'personal'].includes(active) && previousActive !== active) {
+      setUnlistedVisibilityDefault();
     }
     previousActive = active;
   };
 
   pageOption.addEventListener('click', () => queueMicrotask(syncMode));
+  document.querySelector('.cat-opt[data-cat="personal"]')?.addEventListener('click', () => queueMicrotask(syncMode));
 
   const selector = document.querySelector('.cat-selector');
   if (selector) {
