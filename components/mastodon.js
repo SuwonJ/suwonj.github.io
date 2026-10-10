@@ -1,5 +1,5 @@
 import { stripMetadataTags } from './editor-tools.js?v=21';
-import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=21';
+import { fetchDocumentStructure, fetchDocumentRoots, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=22';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 const ACCOUNT_ID = "116979319977947616";
@@ -8,12 +8,15 @@ const postsByTag = new Map();
 export async function fetchPostsByTag(tag) {
   if (postsByTag.has(tag)) return postsByTag.get(tag);
 
-  const url = `${INSTANCE_URL}/api/v1/accounts/${ACCOUNT_ID}/statuses?exclude_reblogs=true&limit=40&tagged=${encodeURIComponent(tag)}`;
-
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch statuses");
-    const statuses = await res.json();
+    // Account timelines include self-replies even with exclude_replies=true.
+    // The listing represents documents, not their internal TEXT/MEDIA statuses.
+    const statuses = await fetchDocumentRoots({
+      instanceUrl: INSTANCE_URL,
+      accountId: ACCOUNT_ID,
+      tag,
+      limit: 40
+    });
     const posts = statuses.map(parseMastodonStatus);
     postsByTag.set(tag, posts);
     return posts;
