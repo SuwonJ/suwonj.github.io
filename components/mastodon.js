@@ -115,7 +115,7 @@ export function parseMastodonStatus(status) {
   const allTags = (status.tags || []).map(t => t.name);
 
   const categoryTags = [
-    "blog", "research", "page", "link", "personal", "tmp", "draft",
+    "blog", "research", "page", "link", "personal", "개인", "tmp", "draft",
     "블로그", "연구", "페이지", "링크", "임시", "temp"
   ];
   const tmpTags = ["tmp", "draft", "임시", "temp"];
