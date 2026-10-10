@@ -115,17 +115,20 @@ export function parseMastodonStatus(status) {
   const allTags = (status.tags || []).map(t => t.name);
 
   const categoryTags = [
-    "blog", "research", "page", "link", "tmp", "draft",
+    "blog", "research", "page", "link", "personal", "tmp", "draft",
     "블로그", "연구", "페이지", "링크", "임시", "temp"
   ];
   const tmpTags = ["tmp", "draft", "임시", "temp"];
   const pageTags = ["page", "link", "페이지", "링크"];
+  const personalTags = ["personal", "개인"];
 
   let category = "blog";
   if (allTags.some(t => tmpTags.includes(t.toLowerCase()))) {
     category = "tmp";
   } else if (allTags.some(t => pageTags.includes(t.toLowerCase()))) {
     category = "page";
+  } else if (allTags.some(t => personalTags.includes(t.toLowerCase()))) {
+    category = "personal";
   } else if (allTags.some(t => ["research", "연구"].includes(t.toLowerCase()))) {
     category = "research";
   } else if (allTags.some(t => ["blog", "블로그"].includes(t.toLowerCase()))) {
@@ -134,7 +137,10 @@ export function parseMastodonStatus(status) {
 
   const isDraft = category === "tmp" || allTags.some(t => tmpTags.includes(t.toLowerCase()));
   const displayTags = allTags.filter(t => !categoryTags.includes(t.toLowerCase()));
-  let markdownText = statusContentToMarkdown(status, { removeTags: true });
+  // OAuth editing supplies raw Mastodon /source Markdown; display HTML is lossy.
+  let markdownText = typeof status.sulog_source_text === 'string'
+    ? status.sulog_source_text
+    : statusContentToMarkdown(status, { removeTags: true });
 
   let title = "";
   if (status.spoiler_text && status.spoiler_text.trim().length > 0) {
