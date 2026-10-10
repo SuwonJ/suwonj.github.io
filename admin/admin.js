@@ -434,7 +434,7 @@ function setupPublishing() {
             showToast("임시 글(#tmp)이 목록에 추가되었습니다. 나중에 태그를 바꿔 게시할 수 있습니다.", "info");
           } else {
             if (confirm("글이 성공적으로 발행되었습니다! 발행된 페이지로 이동하시겠습니까?")) {
-              window.location.href = `/${publishingCategory}/?id=${result.id}`;
+              window.location.href = `${publishingCategory === "personal" ? "/log" : "/" + publishingCategory}/?id=${result.id}`;
             }
           }
         }, 500);
@@ -609,6 +609,8 @@ function renderPostsList() {
       catBadgeHtml = `<span class="badge-tag badge-draft">#tmp</span>`;
     } else if (post.category === "research") {
       catBadgeHtml = `<span class="badge-tag badge-research">#research</span>`;
+    } else if (post.category === "personal") {
+      catBadgeHtml = `<span class="badge-tag">#personal</span>`;
     } else if (post.category === "page") {
       catBadgeHtml = `<span class="badge-tag" style="background:rgba(52,211,153,.12);color:#a7f3d0;">#page</span>`;
     } else {
@@ -621,7 +623,7 @@ function renderPostsList() {
 
     const viewUrl = (post.category === "tmp" || post.isDraft)
       ? post.url // 임시글은 마스토돈 원본 링크로
-      : `/${post.category}/?id=${post.id}`; // 정식 글은 사이트 링크
+      : `${post.category === "personal" ? "/log" : "/" + post.category}/?id=${post.id}`; // 정식 글은 사이트 링크
 
     card.innerHTML = `
       <div class="post-card-meta">
