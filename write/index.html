@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sulog Write</title>
+    <title>Sulog · Write</title>
 
     <!-- Modern Typography & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -907,26 +907,27 @@
         #preview-markdown-content > * { content-visibility: auto; contain-intrinsic-size: auto 100px; }
         @media print { #preview-markdown-content > * { content-visibility: visible; } }
     </style>
+    <link rel="stylesheet" href="/assets/studio-ui.css?v=23">
 </head>
 <body>
 
     <!-- Header -->
     <header class="app-header">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <button type="button" id="btn-toggle-sidebar" class="btn" title="게시글 목록 열기/닫기" style="padding: 0.35rem 0.6rem;">
+            <button type="button" aria-controls="posts-sidebar" id="btn-toggle-sidebar" class="btn" title="게시글 목록 열기/닫기" style="padding: 0.35rem 0.6rem;">
                 <span id="icon-toggle-sidebar" class="material-symbols-outlined" style="font-size: 19px;">menu_open</span>
                 <span class="btn-text" style="font-size: 0.8rem;">글 목록</span>
                 <span id="posts-count-badge" class="badge" style="display: none; padding: 0.1rem 0.4rem; font-size: 0.7rem;">0</span>
             </button>
             <a href="/write/" class="brand-logo">
-                <span>Sulog Write</span>
+                <span>Sulog</span><span class="brand-context">Write</span>
 
             </a>
         </div>
 
         <div class="header-actions">
             <button type="button" id="btn-new-post" class="btn" title="새 글 작성 모드" style="display: none;">
-                <span class="material-symbols-outlined" style="font-size: 17px; color: var(--accent-green);">add_circle</span>
+                <span class="material-symbols-outlined" style="font-size: 17px;">add</span>
                 <span>새 글 쓰기</span>
             </button>
             <div id="user-chip-container">
@@ -941,11 +942,12 @@
 
     <!-- Main Workspace -->
     <main class="workspace">
+        <div id="sidebar-scrim" aria-hidden="true"></div>
         <!-- 1. Posts Sidebar -->
         <aside id="posts-sidebar" class="posts-sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-title">
-                    <span class="material-symbols-outlined" style="font-size: 19px; color: var(--accent-blue);">list_alt</span>
+                    <span class="material-symbols-outlined" style="font-size: 19px;">list_alt</span>
                     <span>게시글 관리</span>
                 </div>
                 <button type="button" id="btn-refresh-posts" class="tool-btn" title="목록 새로고침">
@@ -962,9 +964,11 @@
             <!-- Filter tabs -->
             <div class="posts-filter-tabs">
                 <button type="button" class="filter-tab active" data-filter="all">전체</button>
-                <button type="button" class="filter-tab" data-filter="blog">#blog</button>
-                <button type="button" class="filter-tab" data-filter="research">#research</button>
-                <button type="button" class="filter-tab" data-filter="tmp">#tmp</button>
+                <button type="button" class="filter-tab" data-filter="blog">블로그</button>
+                <button type="button" class="filter-tab" data-filter="research">연구</button>
+                <button type="button" class="filter-tab" data-filter="personal">개인</button>
+                <button type="button" class="filter-tab" data-filter="page">페이지</button>
+                <button type="button" class="filter-tab" data-filter="tmp">임시</button>
             </div>
 
             <!-- Posts List Scroll Area -->
@@ -992,18 +996,25 @@
             </div>
 
             <div class="config-bar">
-                <div class="input-row">
-                    <input type="text" aria-label="글 제목" id="input-title" class="input-title" disabled placeholder="제목을 입력하세요..." autofocus>
-
-                    <div class="cat-selector">
-                        <div class="cat-opt active" data-cat="blog">#blog</div>
-                        <div class="cat-opt" data-cat="research">#research</div><div class="cat-opt" data-cat="page">#page</div>
-                        <div class="cat-opt" data-cat="personal">#personal</div>
-                        <div class="cat-opt" data-cat="tmp" style="color: #fbbf24;">#tmp</div>
+                <div class="title-row">
+                    <input type="text" aria-label="글 제목" id="input-title" class="input-title" disabled placeholder="글 제목" autofocus>
+                </div>
+                <div class="metadata-row">
+                    <div class="metadata-field metadata-category">
+                        <span class="field-label" id="category-label">분류</span>
+                        <div class="cat-selector" role="group" aria-labelledby="category-label">
+                            <button type="button" class="cat-opt active" data-cat="blog">블로그</button>
+                            <button type="button" class="cat-opt" data-cat="research">연구</button>
+                            <button type="button" class="cat-opt" data-cat="page">페이지</button>
+                            <button type="button" class="cat-opt" data-cat="personal">개인</button>
+                            <button type="button" class="cat-opt" data-cat="tmp">임시</button>
+                        </div>
+                    </div>
+                    <div class="metadata-field metadata-tags">
+                        <label class="field-label" for="input-tags">태그</label>
+                        <input type="text" aria-label="주제 태그" id="input-tags" class="input-tags" disabled placeholder="쉼표로 구분 · ai, cpp, notes">
                     </div>
                 </div>
-
-                <input type="text" aria-label="주제 태그" id="input-tags" class="input-tags" disabled placeholder="주제 태그 (쉼표 구분: cpp, ai, algorithm)">
             </div>
 
             <!-- Formatting Toolbar -->
@@ -1053,8 +1064,8 @@
 
     <!-- Footer Status Bar -->
     <footer class="app-footer">
-        <div role="status" aria-live="polite" id="status-draft">자동 저장 준비됨</div>
-        <div id="status-server">서버: maximux.suwonmars.com</div>
+        <div class="footer-status" role="status" aria-live="polite" id="status-draft">자동 저장 준비됨</div>
+        <div class="footer-connection"><span id="status-server">서버: maximux.suwonmars.com</span></div>
     </footer>
 
     <!-- Toast Notification -->
@@ -1063,7 +1074,7 @@
         <span id="toast-message">알림 메시지</span>
     </div>
 
-    <script type="module" src="./write.js?v=22"></script>
+    <script type="module" src="./write.js?v=23"></script>
     <script type="module" src="./pdf.js?v=21"></script>
     <script type="module" src="./page-mode.js?v=21"></script>
 </body>
