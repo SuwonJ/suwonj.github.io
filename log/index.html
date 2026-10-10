@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>개인 기록 | Sulog</title>
+        <meta name="robots" content="noindex, nofollow, noarchive" />
+        <link rel="preconnect" href="https://maximux.suwonmars.com" crossorigin />
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            rel="icon"
+            href="/assets/suwonjiconwhite.svg"
+            type="image/x-icon"
+        />
+        <link rel="stylesheet" href="../css/global.css" />
+        <script>
+            (function() {
+                const savedTheme = localStorage.getItem("theme") || "dark";
+                if (savedTheme === "light") {
+                    document.documentElement.classList.add("light-mode");
+                }
+            })();
+        </script>
+        <style>
+            /* 캔버스 고정 */
+            #halftone-canvas {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                z-index: -1;
+                pointer-events: none;
+            }
+
+            /* 마크다운 본문 */
+            #content a {
+                color: var(--nav-text);
+                text-decoration: underline;
+                text-decoration-color: var(--toc-border);
+                text-underline-offset: 0.2em;
+            }
+            #content a:hover,
+            #content a:focus-visible {
+                color: var(--nav-hover);
+                text-decoration-color: currentColor;
+            }
+        </style>
+    </head>
+    <body class="reading-layout">
+        <canvas id="halftone-canvas"></canvas>
+
+        <main
+            style="
+                position: relative;
+                z-index: 1;
+                padding: 3rem;
+                max-width: 800px;
+                margin: 0 auto;
+            "
+        >
+            <h1 id="page-title" style="font-size: 2rem; margin-bottom: 1rem">
+                블로그
+            </h1>
+            <div id="tag-container"></div>
+            <hr
+                style="
+                    border: none;
+                    height: 1px;
+                    margin-bottom: 2rem;
+                    visibility: hidden;
+                    width: 100%;
+                    margin: 1rem auto;
+                "
+            />
+            <div id="content" style="line-height: 1.8">로딩 중...</div>
+        </main>
+
+        <aside id="floating-tree"></aside>
+        <aside id="floating-toc"></aside>
+
+        <script type="module" src="/blog/blog.js"></script>
+    </body>
+</html>
