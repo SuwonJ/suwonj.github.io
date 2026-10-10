@@ -655,7 +655,10 @@ export async function fetchEditableStatus(status) {
   }));
   if (sources.every(Boolean)) {
     const tags = (combined.tags || []).map(tag => tag.name);
-    combined.sulog_source_text = sources.map(source => stripMetadataTags(source.text.split(THREAD_MARKER).join(''), tags)).join('\n\n');
+    combined.sulog_source_text = sources.map((source, index) => {
+      const text = index === 0 ? source.text : removeInternalMarker(source.text);
+      return index === 0 ? stripMetadataTags(text, tags) : text;
+    }).join('\n\n');
   }
   return combined;
 }
