@@ -1,5 +1,5 @@
 import { stripMetadataTags } from './editor-tools.js?v=21';
-import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=21';
+import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, fetchDocumentStructure, fetchDocumentRoots, mediaDescriptors } from './mastodon_document.js?v=22';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 
@@ -623,17 +623,16 @@ export async function fetchStatusWithThread(status) {
 export async function fetchMyStatuses({ limit = 40, maxId = null } = {}) {
   const token = getStoredToken();
   if (!token) throw new Error("로그인이 필요합니다.");
-
   const user = await fetchAccountInfo();
-  if (!user || !user.id) throw new Error("사용자 정보를 불러올 수 없습니다.");
+  if (!user?.id) throw new Error("사용자 정보를 불러올 수 없습니다.");
 
-  let url = `${INSTANCE_URL}/api/v1/accounts/${user.id}/statuses?exclude_reblogs=true&exclude_replies=true&limit=${limit}`;
-  if (maxId) url += `&max_id=${maxId}`;
-
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Failed to fetch statuses: ${await res.text()}`);
-
-  return await res.json();
+  return fetchDocumentRoots({
+    instanceUrl: INSTANCE_URL,
+    accountId: user.id,
+    token,
+    limit,
+    maxId
+  });
 }
 
 // Editing must use the authenticated source endpoint, not lossy display HTML.
