@@ -54,10 +54,11 @@
     color: var(--text-secondary);
 }
 .node-page .node-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .65rem;
-    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    max-width: 440px;
     margin-top: 2.25rem;
 }
 .node-page .node-action {
@@ -84,13 +85,31 @@
     color: #292218;
 }
 .node-page a.node-action--primary:hover { background: #f5bb3e; border-color: #f5bb3e; }
-.node-page .node-action--disabled {
-    color: var(--text-muted);
-    background: transparent;
-    border-style: dashed;
-    cursor: default;
+.node-page .node-action--primary { min-width: 224px; }
+.node-page .node-store-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
 }
-.node-page .node-action--disabled small { font-weight: 400; font-size: .7rem; }
+.node-page .node-store-badges a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    border-radius: 5px;
+}
+.node-page .node-store-badges a:focus-visible {
+    outline: 2px solid var(--nav-hover);
+    outline-offset: 4px;
+}
+.node-page .node-store-badges img {
+    display: block;
+    width: auto;
+    height: 54px;
+    max-width: 100%;
+    object-fit: contain;
+}
 
 /* Flutter Windows/web wide workspace: navigation + Today + embedded Backlog. */
 .node-page .node-product { min-width: 0; }
@@ -246,7 +265,7 @@
     .node-page main.node-main { padding: 122px 1.5rem 3rem !important; }
     .node-page h1 { font-size: 4.2rem; }
     .node-page .node-headline { font-size: 1.4rem; margin-top: 1.8rem; }
-    .node-page .node-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .node-page .node-store-badges img { height: 50px; }
     .node-page .node-action { padding: .7rem; font-size: .79rem; }
     .node-page .node-app-shell {
         display: block;
