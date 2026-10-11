@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Node (Henceforce) — 할 일과 계획, 집중 세션을 하나의 흐름으로 관리하는 생산성 앱. 웹과 Android에서 사용하세요." />
+    <meta name="description" content="Node — 할 일과 계획, 집중 세션을 하나의 흐름으로 관리하는 생산성 앱." />
     <meta name="theme-color" content="#121212" />
-    <title>Node · Henceforce — SuwonJ</title>
+    <title>Node — SuwonJ</title>
     <link rel="canonical" href="https://suwonmars.com/projects/node/" />
     <link rel="icon" href="/assets/suwonjiconwhite.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,32 +13,17 @@
     <link rel="stylesheet" href="/css/global.css" />
     <link rel="stylesheet" href="./node.css" />
     <script>
-        (function () {
-            if (localStorage.getItem("theme") === "light") {
-                document.documentElement.classList.add("light-mode");
-            }
-        })();
+        if (localStorage.getItem("theme") === "light") {
+            document.documentElement.classList.add("light-mode");
+        }
     </script>
 </head>
 <body class="node-page reading-layout">
     <canvas id="halftone-canvas" aria-hidden="true"></canvas>
-
     <main class="node-main">
-        <p class="node-eyebrow">A SuwonJ project / Productivity</p>
-
         <section class="node-hero" aria-labelledby="node-title">
             <div class="node-hero-copy">
-                <div class="node-brand">
-                    <span class="node-brand-icon" aria-hidden="true">
-                        ( )
-                        <img src="https://node.suwonmars.com/icons/Icon-192.png" alt="" onerror="this.remove()" />
-                    </span>
-                    <div>
-                        <p class="node-brand-overline">HENCEFORCE</p>
-                        <h1 id="node-title">Node<span>.</span></h1>
-                    </div>
-                </div>
-
+                <h1 id="node-title">Node<span>.</span></h1>
                 <p class="node-headline">계획부터 실행까지,<br />하나의 흐름으로.</p>
                 <p class="node-summary">할 일을 모으고, 오늘의 계획으로 옮기고, 집중한 시간을 남기세요.</p>
 
@@ -51,62 +36,82 @@
                         <span>Google Play</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 4v16l13-8L7 4Z"/></svg>
                     </a>
-                    <span class="node-action node-action--disabled" aria-label="Microsoft Store, 준비 중">
+                    <span class="node-action node-action--disabled" aria-label="Microsoft Store 준비 중">
                         <span>Microsoft Store</span>
                         <small>준비 중</small>
                     </span>
                 </div>
-                <p class="node-note">현재 스토어에는 Henceforce 이름으로 제공됩니다.</p>
             </div>
 
-            <div class="node-preview-block">
-                <div class="node-preview-frame" role="img" aria-label="Node의 오늘 일정, 진행률, 집중 세션, 백로그를 보여주는 설명용 인터페이스 예시">
-                    <div class="node-window-bar">
-                        <span class="node-window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                        <span class="node-window-name">henceforce <b>•</b> node</span>
-                        <span class="node-window-status">Plan · Focus · Repeat</span>
-                    </div>
-                    <div class="node-app-preview" aria-hidden="true">
-                        <aside class="node-pane node-pane--calendar">
-                            <p class="node-preview-label">CALENDAR</p>
-                            <div class="node-calendar-month">October <span class="node-month-chevron">◂ &nbsp; ▸</span></div>
-                            <div class="node-calendar">
-                                <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
-                                <span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
-                                <span>11</span><span class="node-selected">12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span>
-                                <span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span>
-                            </div>
-                            <div class="node-mini-info">
-                                <p>이번 주의 집중</p>
-                                <strong>12h 40m</strong>
-                                <small>매일 조금씩.</small>
-                            </div>
-                        </aside>
-                        <div class="node-pane node-pane--today">
-                            <p class="node-preview-label">TODAY</p>
-                            <div class="node-today-head">
-                                <h2>오늘의 계획</h2>
-                                <strong>02:35</strong>
-                            </div>
-                            <div class="node-progress-sub"><span>5개 중 2개 완료</span><span>집중</span></div>
-                            <div class="node-progress"></div>
-                            <div class="node-section-title"><span>해야 할 일</span><span>＋</span></div>
-                            <div class="node-task node-task--muted"><span class="node-checkbox">✓</span><span>오늘의 계획 정리</span></div>
-                            <div class="node-task node-task--active"><span class="node-checkbox"></span><span>프로젝트 작업</span><small>60분</small></div>
-                            <div class="node-task"><span class="node-checkbox"></span><span>읽고 정리하기</span><small>30분</small></div>
-                            <div class="node-session"><div><span style="background:none;color:inherit;padding:0">FOCUS SESSION</span><br /><b>25:00</b></div><span>Ⅱ</span></div>
+            <!-- Layout follows the actual Flutter Today / WorkspaceNavigation / Backlog widgets.
+                 Illustrative task content only; no invented logo or independently designed UI. -->
+            <div class="node-product" role="img" aria-label="Henceforce 데스크톱 앱의 화면 구성: 왼쪽 탐색 메뉴 및 달력, 중앙 오늘의 노드, 오른쪽 백로그">
+                <div class="node-app-shell" aria-hidden="true">
+                    <aside class="node-app-navigation">
+                        <strong class="node-app-name">Henceforce</strong>
+                        <div class="node-add-button"><span class="node-ui-icon node-plus-icon">+</span><span>추가</span></div>
+                        <div class="node-app-menu">
+                            <div class="node-menu-item node-menu-item--active"><span class="node-ui-icon">▣</span><span>오늘</span></div>
+                            <div class="node-menu-item"><span class="node-ui-icon">≋</span><span>타임라인</span></div>
+                            <div class="node-menu-item"><span class="node-ui-icon">♧</span><span>피드</span></div>
+                            <div class="node-menu-item"><span class="node-ui-icon">♙</span><span>내 정보</span></div>
                         </div>
-                        <aside class="node-pane node-pane--backlog">
-                            <p class="node-preview-label">BACKLOG</p>
-                            <p class="node-backlog-tag">나중에 할 일도 한곳에</p>
-                            <div class="node-backlog-item"><i></i><span>새로운 아이디어 정리</span></div>
-                            <div class="node-backlog-item"><i></i><span>다음 주 계획하기</span></div>
-                            <div class="node-backlog-item"><i></i><span>책 읽기</span></div>
-                            <div class="node-backlog-item"><i></i><span>사이드 프로젝트</span></div>
-                        </aside>
-                    </div>
+                        <div class="node-sidebar-calendar">
+                            <div class="node-calendar-open">▦ &nbsp; 월간 일정 보기</div>
+                            <div class="node-calendar-title"><strong>2026년 10월</strong><span>‹ &nbsp; ›</span></div>
+                            <div class="node-calendar-grid">
+                                <em>월</em><em>화</em><em>수</em><em>목</em><em>금</em><em>토</em><em>일</em>
+                                <span></span><span></span><span></span><span>1</span><span>2</span><span>3</span><span>4</span>
+                                <span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span>
+                                <span class="node-calendar-selected">12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span>
+                                <span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span>
+                            </div>
+                        </div>
+                    </aside>
+                    <section class="node-app-today">
+                        <div class="node-today-heading">
+                            <span>오늘 <small>월 &nbsp;▦</small></span>
+                            <strong>02:35</strong>
+                        </div>
+                        <div class="node-today-subheading"><span>5개 중 2개 완료</span><span>집중</span></div>
+                        <div class="node-progress-track"><i></i></div>
+                        <div class="node-day-elapsed">day elapsed 52%</div>
+                        <div class="node-task-list">
+                            <div class="node-task-row node-task-row--done">
+                                <span class="node-execution"><span class="node-check">✓</span><span class="node-play">▶</span></span>
+                                <span class="node-task-name">오늘의 계획 정리</span>
+                                <span class="node-steps">›</span>
+                            </div>
+                            <div class="node-task-row">
+                                <span class="node-execution"><span class="node-check"></span><span class="node-play">▶</span></span>
+                                <span class="node-task-name">프로젝트 작업</span>
+                                <span class="node-steps">›</span>
+                            </div>
+                            <div class="node-task-row">
+                                <span class="node-execution"><span class="node-check"></span><span class="node-play">▶</span></span>
+                                <span class="node-task-name">읽고 정리하기</span>
+                                <span class="node-steps">›</span>
+                            </div>
+                            <div class="node-task-row node-task-row--done">
+                                <span class="node-execution"><span class="node-check">✓</span><span class="node-play">▶</span></span>
+                                <span class="node-task-name">자료 정리</span>
+                                <span class="node-steps">›</span>
+                            </div>
+                            <div class="node-task-capture"><span>+</span> &nbsp;새 노드 추가</div>
+                        </div>
+                    </section>
+                    <aside class="node-app-backlog">
+                        <div class="node-backlog-tabs">
+                            <strong>백로그</strong><span>루틴</span><span class="node-backlog-count">4</span><b>+</b>
+                        </div>
+                        <div class="node-backlog-row"><span class="node-execution"><span class="node-check"></span><span class="node-play">▶</span></span><span>새로운 아이디어 정리</span><span class="node-steps">›</span></div>
+                        <div class="node-backlog-row"><span class="node-execution"><span class="node-check"></span><span class="node-play">▶</span></span><span>다음 주 계획하기</span><span class="node-steps">›</span></div>
+                        <div class="node-backlog-row"><span class="node-execution"><span class="node-check"></span><span class="node-play">▶</span></span><span>책 읽기</span><span class="node-steps">›</span></div>
+                        <div class="node-backlog-row"><span class="node-execution"><span class="node-check"></span><span class="node-play">▶</span></span><span>사이드 프로젝트</span><span class="node-steps">›</span></div>
+                    </aside>
+                    <div class="node-mobile-dock"><strong>백로그</strong><span>4 &nbsp;⌃</span></div>
+                    <div class="node-mobile-nav"><span>▣</span><span>≋</span><span class="node-mobile-add">+</span><span>♧</span><span>♙</span></div>
                 </div>
-                <p class="node-preview-caption">Interface preview · 실제 기능을 바탕으로 구성한 예시</p>
             </div>
         </section>
 
@@ -128,16 +133,10 @@
                 <p>완료와 진행 과정을 한곳에.</p>
             </div>
         </section>
-
         <footer class="node-footer">
-            <span>NODE / HENCEFORCE · SUWONJ</span>
-            <span class="node-footer-links">
-                <a href="/henceforce/privacy/">개인정보처리방침</a>
-                <a href="/">SuwonJ로 돌아가기 ↗</a>
-            </span>
+            <a href="/henceforce/privacy/">개인정보처리방침</a>
         </footer>
     </main>
-
     <script type="module">
         import { renderNavbar } from "/components/navbar.js";
         import { HalftoneBackground } from "/components/halftone.js";
@@ -157,7 +156,6 @@
         });
         background.init();
         background.scanTargets();
-
         window.addEventListener("scroll", () => {
             document.querySelector("main")?.style.setProperty("--scroll-y", window.scrollY + "px");
         }, { passive: true });
