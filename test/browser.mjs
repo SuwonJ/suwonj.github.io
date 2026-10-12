@@ -319,6 +319,68 @@ try {
   assert.equal(await page.evaluate(() => window.sulogWriteEditor.state.selection.main.head),3);
   await page.evaluate(() => { document.getElementById('cm-editor-host').style.zoom = ''; window.sulogWriteEditor.requestMeasure(); });
   results.push('zoomed editor cursor coordinate round trip');
+
+  // Public pages accept API data, including federated comments. The visible
+  // DOM must never interpret attacker-supplied event handlers or script URLs.
+  const publicContext = await browser.newContext({ viewport: {width: 1280, height: 900}, serviceWorkers: 'block' });
+  await publicContext.addInitScript(() => {
+    // Simulate the Marked HTML output, keeping raw HTML deliberately unsafe
+    // so the real, locally hosted DOMPurify integration is exercised.
+    window.marked = { parse: source => source };
+  });
+  const maliciousBody = '<p>안전한 글</p><img src=x onerror="window.postXss=1"><a href="javascript:alert(1)">evil</a><strong>유지할 강조</strong>';
+  const externalComment = {
+    id: 'comment-1',
+    in_reply_to_id: '911',
+    account: { id: 'external', username: 'attacker', acct: 'attacker', display_name: '<img src=x onerror="window.nameXss=1">', avatar: 'javascript:alert(1)', avatar_static: 'javascript:alert(1)', url: 'javascript:alert(1)' },
+    content: '<p>정상 댓글</p><img src=x onerror="window.commentXss=1"><a href="javascript:alert(1)">unsafe link</a><em>유지할 강조</em>',
+    created_at: '2026-10-12T00:00:00Z',
+    media_attachments: [{type:'image',url:'javascript:alert(1)',description:'" onerror="window.mediaXss=1'}]
+  };
+  await publicContext.route('**/*', async route => {
+    const url = new URL(route.request().url);
+    if (url.origin === origin) return route.continue();
+    if (url.hostname !== 'maximux.suwonmars.com') return route.fulfill({status:204,body:''});
+    if (/\/api\/v1\/statuses\/\d+\/context$/.test(url.pathname)) return route.fulfill({
+      contentType:'application/json',body:JSON.stringify({descendants:[externalComment]})
+    });
+    if (/\/api\/v1\/statuses\/\d+$/.test(url.pathname)) {
+      const id = url.pathname.split('/').pop();
+      const category = ({911:'blog',912:'research',913:'personal',914:'page'})[id] || 'blog';
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({
+        id, spoiler_text:'<img src=x onerror="window.titleXss=1">제목',
+        sulog_source_text:maliciousBody,
+        content:'<p>placeholder</p>',tags:[{name:category},{name:'<img src=x onerror="window.tagXss=1">'}],
+        account:{id:'owner'}, media_attachments:[{type:'image',url:'javascript:alert(1)',description:'" onerror="window.altXss=1'}],
+        url:'javascript:alert(1)', created_at:'2026-10-12T00:00:00Z',
+        in_reply_to_id:null
+      })});
+    }
+    return route.fulfill({status:200,contentType:'application/json',body:'[]'});
+  });
+  for (const routePath of ['/blog/?id=911', '/research/?id=912', '/log/?id=913', '/p/?id=914']) {
+    const publicPage = await publicContext.newPage();
+    const publicErrors = [];
+    publicPage.on('pageerror', error => publicErrors.push(error.message));
+    await publicPage.goto(origin + routePath);
+    await publicPage.waitForSelector('#content strong');
+    await publicPage.waitForSelector('.comment-body em');
+    const security = await publicPage.evaluate(() => ({
+      events:document.querySelectorAll('[onerror],[onload],[onclick]').length,
+      badLinks:[...document.querySelectorAll('a[href]')].some(a => a.getAttribute('href').trim().toLowerCase().startsWith('javascript:')),
+      injected: ['postXss','commentXss','titleXss','nameXss','tagXss','altXss','mediaXss'].some(key => window[key] === 1),
+      markup: !!document.querySelector('#content strong, .comment-body em')
+    }));
+    assert.equal(security.events,0,routePath + ': event attributes retained');
+    assert.equal(security.badLinks,false,routePath + ': dangerous link');
+    assert.equal(security.injected,false,routePath + ': executable markup');
+    assert.equal(security.markup,true,routePath + ': harmless rich text removed');
+    assert.deepEqual(publicErrors,[],routePath + ': runtime errors');
+    await publicPage.close();
+  }
+  results.push('public blog/research/log/p Markdown, Mastodon comments and attributes sanitized');
+  await publicContext.close();
+
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:results,errors},null,2));
   await mkdir('/tmp/sulog-editor-check', {recursive:true});

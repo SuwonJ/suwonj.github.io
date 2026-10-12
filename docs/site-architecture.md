@@ -45,3 +45,9 @@
 - 지금은 **무엇을 알고 무엇은 아직 검증하지 못했는가**?
 
 첫 글은 기술 보고서가 아닌 일상의 기록이어도 된다. 코드 지도는 글의 재료를 제공하는 용도로 유지한다.
+
+## 공개 HTML 경계
+
+방문자용 `/blog/`, `/research/`, `/log/`, `/p/`는 Mastodon에 저장된 Markdown을 렌더링한다. 출력 직전에 자체 호스팅한 DOMPurify 3.4.16(`assets/vendor/purify.min.js`)로 HTML을 정화하며, 날짜·제목·태그·미디어 URL 등 템플릿 문자열은 `components/safe-html.js`에서 처리한다. 댓글 역시 서버가 제공하는 HTML을 정화한 뒤 넣는다. 수식의 `semantics`와 `annotation` 태그는 유지한다.
+
+DOMPurify는 [Cure53 DOMPurify v3.4.16](https://github.com/cure53/DOMPurify/tree/3.4.16) 배포본이다. 새 콘텐츠 표현을 추가할 때는 렌더러와 HTML 정화 경계를 함께 확인한다. 이 보안 조치가 곧 모든 사이트 위협을 제거한다는 뜻은 아니다.

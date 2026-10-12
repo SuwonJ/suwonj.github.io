@@ -216,7 +216,7 @@ async function renderPost(id, container) {
         <span style="margin:0 0.3rem">/</span> 
         <a href="#" id="bc-title">
           <span class="desktop-text">${escapeHtml(post.title || "문서")}</span>
-          <span class="mobile-text">${(post.title || "문서").charAt(0)}</span>
+          <span class="mobile-text">${escapeHtml((post.title || "문서").charAt(0))}</span>
         </a> 
         <span id="bc-toc-container"></span>
       `;
