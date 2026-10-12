@@ -15,6 +15,8 @@
 | `/projects/node/` | 제품 소개 랜딩 | `projects/node/index.html` |
 | `/write/` | 콘텐츠 작성·수정·발행 | `write/write.js`, `admin/admin.js`, `write/editor.js` |
 
+`components/post-list.js`가 `/blog/`, `/research/`, `/log/`의 목록·태그 필터를 공통으로 제공한다. 분류별 글 목적과 URL은 그대로 분리한다.
+
 이 경로들은 서로 다른 공개 목적이 있으므로 억지로 합치지 않는다. `/admin/`은 폐쇄됐지만 `admin/admin.js`는 현재 `/write/`에서 사용 중이다.
 
 ## 가장 중요한 데이터 흐름
@@ -51,3 +53,9 @@
 방문자용 `/blog/`, `/research/`, `/log/`, `/p/`는 Mastodon에 저장된 Markdown을 렌더링한다. 출력 직전에 자체 호스팅한 DOMPurify 3.4.16(`assets/vendor/purify.min.js`)로 HTML을 정화하며, 날짜·제목·태그·미디어 URL 등 템플릿 문자열은 `components/safe-html.js`에서 처리한다. 댓글 역시 서버가 제공하는 HTML을 정화한 뒤 넣는다. 수식의 `semantics`와 `annotation` 태그는 유지한다.
 
 DOMPurify는 [Cure53 DOMPurify v3.4.16](https://github.com/cure53/DOMPurify/tree/3.4.16) 배포본이다. 새 콘텐츠 표현을 추가할 때는 렌더러와 HTML 정화 경계를 함께 확인한다. 이 보안 조치가 곧 모든 사이트 위협을 제거한다는 뜻은 아니다.
+
+## LaTeX 렌더링 회귀 사례
+
+기존 IA의 `\\text{`ㄴㅗㄴ'}`는 짝이 맞지 않는 백틱을 포함한다. Markdown 정규화기가 여러 문단을 건너 다음 백틱까지 인라인 코드로 처리하면 그 사이의 `$$...$$` 수식이 렌더링되지 않는다. `components/content-dependencies.js`는 코드 구간 인식을 현재 문단으로 제한한다. `admin/admin.js`는 이미 배포된 미리보기 Worker 번들에도 정규화가 적용되도록 입력 경계에서 처리한다.
+
+테스트: `npm test`(정규화·렌더링 단위 테스트), `npm run test:browser`(미리보기·공개 화면·목록). 브라우저 테스트는 자동화된 목 환경을 사용하므로 실제 Mastodon 서버에서의 엔드 투 엔드 점검을 대체하지 않는다.

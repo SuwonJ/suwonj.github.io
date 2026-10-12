@@ -374,8 +374,34 @@ try {
         in_reply_to_id:null
       })});
     }
+    if (url.pathname.includes('/api/v1/accounts/') && url.pathname.endsWith('/statuses')) {
+      const category = url.searchParams.get('tagged') || 'blog';
+      return route.fulfill({contentType:'application/json',body:JSON.stringify([{
+        id:'920',spoiler_text:'목록 회귀 테스트',content:'<p>테스트 본문</p>',
+        tags:[{name:category},{name:'topic'}],account:{id:'owner'},
+        created_at:'2026-10-12T00:00:00Z',media_attachments:[],in_reply_to_id:null
+      }])});
+    }
     return route.fulfill({status:200,contentType:'application/json',body:'[]'});
   });
+  // All three list routes should retain their own URLs while sharing the
+  // same list/filter implementation.
+  for (const root of ['/blog/', '/research/', '/log/']) {
+    const listing = await publicContext.newPage();
+    const listErrors = [];
+    listing.on('pageerror', error => listErrors.push(error.message));
+    await listing.goto(origin + root);
+    await listing.waitForSelector('.blog-post-link');
+    assert.equal(await listing.locator('.blog-post-link').getAttribute('href'), root + '?id=920');
+    assert.equal(await listing.locator('.tag[data-tag="topic"]').count(), 1);
+    assert.equal(await listing.locator('.tag[data-tag=""]').count(), root === '/research/' ? 0 : 1);
+    await listing.locator('.tag[data-tag="topic"]').click();
+    assert.equal(new URL(listing.url()).searchParams.get('tags'), 'topic');
+    assert.equal(await listing.locator('.blog-post-link').count(), 1);
+    assert.deepEqual(listErrors, [], root + ': listing errors');
+    await listing.close();
+  }
+  results.push('shared post listing and filters on blog/research/log');
   for (const routePath of ['/blog/?id=911', '/research/?id=912', '/log/?id=913', '/p/?id=914']) {
     const publicPage = await publicContext.newPage();
     const publicErrors = [];
