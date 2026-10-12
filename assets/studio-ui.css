@@ -432,3 +432,86 @@ body.write-mode-live .cm-live-code { background: #202020 !important; }
 @media (prefers-reduced-motion: reduce) {
   .btn, .cat-opt, .filter-tab, .post-card, .posts-sidebar, .toast { transition: none !important; }
 }
+
+
+/* Minimal /write UI: keep structural controls accessible but out of the way. */
+body.write-minimal .app-header {
+  height: 44px;
+  padding: 0 12px;
+  gap: 8px;
+}
+body.write-minimal .app-header > div:first-child { gap: 0 !important; }
+body.write-minimal #btn-toggle-sidebar {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  flex: 0 0 34px;
+}
+body.write-minimal #posts-count-badge { display: none !important; }
+body.write-minimal .header-actions { gap: 6px; }
+body.write-minimal #btn-new-post { padding: 6px !important; }
+body.write-minimal #btn-new-post > span:not(.material-symbols-outlined) { display: none !important; }
+body.write-minimal #btn-publish { min-width: 0; min-height: 32px; padding: 6px 12px !important; }
+body.write-minimal .user-chip { padding: 3px 5px; gap: 4px; min-height: 32px; }
+body.write-minimal .user-chip > span:not(#btn-logout) { display: none; }
+body.write-minimal .user-chip #btn-logout { margin-left: 0 !important; }
+body.write-minimal .sidebar-header { justify-content: flex-end; height: 42px; }
+body.write-minimal .config-bar {
+  padding: 12px clamp(12px, 2.4vw, 28px) 10px;
+  gap: 8px;
+}
+body.write-minimal .input-title {
+  font-size: clamp(20px, 1.7vw, 26px);
+  padding: 0 0 4px;
+}
+body.write-minimal .metadata-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+body.write-minimal .metadata-field { gap: 0; min-width: 0; }
+body.write-minimal .field-label {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+body.write-minimal .metadata-category { flex: 0 0 106px; }
+body.write-minimal .cat-selector { display: none; }
+body.write-minimal .write-category-select {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  color: var(--text-main);
+  background: #171717;
+  border: 1px solid #303030;
+  border-radius: 6px;
+  font-size: 12px;
+}
+body.write-minimal .metadata-tags { flex: 1 1 120px; }
+body.write-minimal .input-tags { height: 34px; padding: 6px 9px; }
+body.write-minimal .visibility-control { flex: 0 0 104px; }
+body.write-minimal .visibility-control select { width: 100%; height: 34px; }
+body.write-minimal .app-footer #status-server { display: none; }
+body.write-minimal .editor-container { min-width: 0; }
+body.write-minimal #cm-editor-host {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+body.write-minimal #cm-editor-host .cm-editor { width: 100%; min-width: 0; }
+@media (max-width: 680px) {
+  body.write-minimal .metadata-row { flex-wrap: wrap; gap: 6px; }
+  body.write-minimal .metadata-category { flex: 0 0 100px; }
+  body.write-minimal .metadata-tags { flex: 1 1 calc(100% - 110px); }
+  body.write-minimal .visibility-control { flex: 0 0 110px; }
+  body.write-minimal .config-bar { padding: 10px 12px 8px; gap: 6px; }
+  body.write-minimal .app-header { height: 44px; }
+}

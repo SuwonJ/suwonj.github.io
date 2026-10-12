@@ -33,9 +33,38 @@ function installVisibilityControl() {
 }
 
 function simplifyWriteUi() {
+  // Only the Markdown mode controls are needed in the writing toolbar.
   document.querySelectorAll('.toolbar .tool-btn[data-cmd], .toolbar .tool-divider').forEach(element => element.remove());
-  document.querySelector('.brand-logo .badge')?.remove();
+
+  // Retain the original category buttons for the publishing logic, but show
+  // a single compact select instead of five permanent buttons.
+  const categoryButtons = document.querySelector('.cat-selector');
+  if (categoryButtons && !document.getElementById('write-category')) {
+    const compact = document.createElement('select');
+    compact.id = 'write-category';
+    compact.className = 'write-category-select';
+    compact.setAttribute('aria-label', '게시 위치');
+    for (const option of categoryButtons.querySelectorAll('.cat-opt[data-cat]')) {
+      const item = document.createElement('option');
+      item.value = option.dataset.cat;
+      item.textContent = option.textContent.trim();
+      compact.append(item);
+    }
+    categoryButtons.before(compact);
+    compact.addEventListener('change', () => {
+      categoryButtons.querySelector(`[data-cat="${compact.value}"]`)?.click();
+    });
+    const syncCategory = () => {
+      const active = categoryButtons.querySelector('.cat-opt.active');
+      if (active && compact.value !== active.dataset.cat) compact.value = active.dataset.cat;
+    };
+    new MutationObserver(syncCategory).observe(categoryButtons, {
+      subtree: true, attributes: true, attributeFilter: ['class']
+    });
+    syncCategory();
+  }
 }
+
 
 function installFetchLayer() {
   const nativeFetch = window.fetch.bind(window);
@@ -102,6 +131,8 @@ async function registerServiceWorker() {
 installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
+// Writing should always open with maximum space for the document.
+localStorage.setItem('sulog_admin_sidebar_open', 'false');
 const { adminReady } = await import('../admin/admin.js?v=23');
 await adminReady;
 updateConnectionState();

@@ -66,6 +66,15 @@ try {
   results.push('legacy admin route returns 404');
   await page.goto(origin + '/write/');
   await page.waitForFunction(() => window.sulogEditor);
+  assert.equal(await page.locator('.brand-logo').count(), 0);
+  assert.equal(await page.locator('#btn-toggle-sidebar .btn-text').count(), 0);
+  assert.equal(await page.locator('#write-category').count(), 1);
+  assert.equal(await page.locator('#posts-sidebar.collapsed').count(), 1);
+  await page.locator('#write-category').selectOption('research');
+  assert.equal(await page.locator('.cat-opt.active').getAttribute('data-cat'), 'research');
+  await page.locator('#write-category').selectOption('blog');
+  assert.equal(await page.locator('.cat-opt.active').getAttribute('data-cat'), 'blog');
+  results.push('minimal write chrome and category selection');
   assert.equal(await page.locator('.cm-editor').count(), 1);
   const setDocument = async text => page.evaluate(text => {
     window.sulogEditor.replaceDocument(text);

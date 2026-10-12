@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sulog · Write</title>
+    <title>Write</title>
 
     <!-- Modern Typography & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -907,22 +907,17 @@
         #preview-markdown-content > * { content-visibility: auto; contain-intrinsic-size: auto 100px; }
         @media print { #preview-markdown-content > * { content-visibility: visible; } }
     </style>
-    <link rel="stylesheet" href="/assets/studio-ui.css?v=23">
+    <link rel="stylesheet" href="/assets/studio-ui.css?v=24">
 </head>
-<body>
+<body class="write-minimal">
 
     <!-- Header -->
     <header class="app-header">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <button type="button" aria-controls="posts-sidebar" id="btn-toggle-sidebar" class="btn" title="게시글 목록 열기/닫기" style="padding: 0.35rem 0.6rem;">
-                <span id="icon-toggle-sidebar" class="material-symbols-outlined" style="font-size: 19px;">menu_open</span>
-                <span class="btn-text" style="font-size: 0.8rem;">글 목록</span>
-                <span id="posts-count-badge" class="badge" style="display: none; padding: 0.1rem 0.4rem; font-size: 0.7rem;">0</span>
+            <button type="button" aria-controls="posts-sidebar" aria-label="글 목록 열기" id="btn-toggle-sidebar" class="btn" title="글 목록" style="padding: 0.35rem 0.6rem;">
+                <span id="icon-toggle-sidebar" class="material-symbols-outlined" style="font-size: 19px;">menu</span>
+                <span id="posts-count-badge" class="badge" style="display:none;">0</span>
             </button>
-            <a href="/write/" class="brand-logo">
-                <span>Sulog</span><span class="brand-context">Write</span>
-
-            </a>
         </div>
 
         <div class="header-actions">
@@ -946,10 +941,6 @@
         <!-- 1. Posts Sidebar -->
         <aside id="posts-sidebar" class="posts-sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-title">
-                    <span class="material-symbols-outlined" style="font-size: 19px;">list_alt</span>
-                    <span>게시글 관리</span>
-                </div>
                 <button type="button" id="btn-refresh-posts" class="tool-btn" title="목록 새로고침">
                     <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
                 </button>
@@ -1074,7 +1065,7 @@
         <span id="toast-message">알림 메시지</span>
     </div>
 
-    <script type="module" src="./write.js?v=23"></script>
+    <script type="module" src="./write.js?v=24"></script>
     <script type="module" src="./pdf.js?v=21"></script>
     <script type="module" src="./page-mode.js?v=21"></script>
 </body>
