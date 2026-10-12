@@ -17,6 +17,7 @@ import { parseMastodonStatus } from "../components/mastodon.js?v=21";
 import { parsePreview, commitPreview } from '../assets/preview.js?v=21';
 import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=21';
 import { formatText } from '../components/editor-tools.js?v=21';
+import { normalizeMarkdownMath } from '../components/content-dependencies.js';
 
 const initialMode = localStorage.getItem('sulog_write_editor_mode') || 'split';
 document.body.classList.add(`write-mode-${['split', 'source', 'live', 'preview'].includes(initialMode) ? initialMode : 'split'}`);
@@ -271,7 +272,8 @@ async function updatePreview({ force = false } = {}) {
   if (text === renderedMarkdown && !force) return;
   const run = async () => {
     if (version !== previewRenderVersion) return false;
-    const html = await parsePreview(text);
+    // Repair already deployed preview bundles without depending on a rebuild.
+    const html = await parsePreview(normalizeMarkdownMath(text));
     if (version !== previewRenderVersion) return false;
     const complete = await commitPreview(root, html, () => version === previewRenderVersion, { force });
     if (complete) {

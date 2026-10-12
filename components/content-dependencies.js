@@ -109,8 +109,13 @@ function transformOutsideCode(text, transform) {
       let runEnd = cursor + 1;
       while (text[runEnd] === "`") runEnd += 1;
       const ticks = text.slice(cursor, runEnd);
+      // An unmatched backtick must not hide later Markdown paragraphs.
+      // IA source has a literal backtick in \text{...}, then another much later.
+      const paragraphBoundary = /\n[ \t]*\n/g;
+      paragraphBoundary.lastIndex = runEnd;
+      const nextParagraph = paragraphBoundary.exec(text);
       const close = text.indexOf(ticks, runEnd);
-      if (close !== -1) {
+      if (close !== -1 && (!nextParagraph || close < nextParagraph.index)) {
         pushPlain(cursor);
         const codeEnd = close + ticks.length;
         pieces.push(text.slice(cursor, codeEnd));

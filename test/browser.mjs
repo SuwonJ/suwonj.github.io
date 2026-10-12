@@ -138,6 +138,24 @@ try {
   assert.ok(await page.evaluate(() => window.preserved === document.querySelector('#preview-markdown-content').firstChild));
   results.push('worker preview, sanitization, metadata does not replace body');
 
+  // Regression: a stray backtick in the real IA must not swallow later math.
+  const tick = String.fromCharCode(96);
+  const iaExcerpt = [
+    "엔트로피 $H(X|g=\\text{" + tick + "ㄴㅗㄴ'})$은 각 그룹의 엔트로피이다. ",
+    "$\\begin{align*}",
+    "H(X|g)&=\\sum_f P(f)H(W_f) \\\\",
+    "&=1",
+    "\\end{align*}$",
+    "",
+    "따라서 정보 이득은 다음과 같다.",
+    "$IG(g=\\text{" + tick + "ㄴㅗㄴ'}) = H(X)-H(X|g) = 1 \\text{bit}$"
+  ].join('\n');
+  await setDocument(iaExcerpt);
+  await page.evaluate(() => window.sulogRenderPreview());
+  await page.waitForFunction(() => document.querySelectorAll('#preview-markdown-content .katex-display').length >= 2);
+  results.push('IA align and information gain render in write preview');
+
+
   // Switching to hidden preview modes should release the rendered DOM at once,
   // without waiting for the normal 300 ms Markdown preview debounce.
   await page.locator('[data-write-mode=live]').click();
