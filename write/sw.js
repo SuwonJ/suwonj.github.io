@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sulog-write-v23';
+const CACHE_NAME = 'sulog-write-v24';
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const response = await fetch('/write/precache.json', { cache: 'no-store' });
