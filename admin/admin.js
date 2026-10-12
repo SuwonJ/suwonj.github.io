@@ -250,9 +250,6 @@ function triggerPreviewUpdate() {
   if (composing || window.sulogWriteEditor?.composing) return;
   const length = window.sulogEditor?.length ?? document.getElementById('editor-textarea').textLength;
 
-  // Source and live modes do not show the rendered preview. Skip scheduling
-  // Markdown/KaTeX work entirely, and discard an old preview immediately.
-  // The revision guard in updatePreview() also cancels in-flight results.
   if (document.body.classList.contains('write-mode-source') ||
       document.body.classList.contains('write-mode-live')) {
     const root = document.getElementById('preview-markdown-content');
@@ -272,7 +269,6 @@ async function updatePreview({ force = false } = {}) {
   if (text === renderedMarkdown && !force) return;
   const run = async () => {
     if (version !== previewRenderVersion) return false;
-    // Repair already deployed preview bundles without depending on a rebuild.
     const html = await parsePreview(normalizeMarkdownMath(text));
     if (version !== previewRenderVersion) return false;
     const complete = await commitPreview(root, html, () => version === previewRenderVersion, { force });

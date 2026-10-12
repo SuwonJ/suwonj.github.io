@@ -38,7 +38,6 @@ export async function commitPreview(root, blocks, isCurrent, { force = false } =
     }
     for (const next of Array.from(template.content.childNodes)) {
       let kept = next;
-      // Ignore syntax highlighter DOM when comparing unchanged code blocks.
       const equal = (old, desired) => old?.isEqualNode(desired) || (old?.nodeName === 'PRE' && desired.nodeName === 'PRE' &&
         old.textContent === desired.textContent && old.querySelector('code')?.className.replace(/\bhljs\b/g, '').trim() === desired.querySelector('code')?.className.trim());
       if (equal(cursor, next)) { kept = cursor; cursor = cursor.nextSibling; }
@@ -52,7 +51,6 @@ export async function commitPreview(root, blocks, isCurrent, { force = false } =
   while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
   const highlight = block => {
     if (!block.isConnected || !isCurrent()) return;
-    // Only known languages: avoid expensive auto detection on huge code blocks.
     const language = block.className.match(/language-([\w-]+)/)?.[1];
     if (language && hljs.getLanguage(language)) hljs.highlightElement(block);
   };

@@ -33,11 +33,8 @@ function installVisibilityControl() {
 }
 
 function simplifyWriteUi() {
-  // Only the Markdown mode controls are needed in the writing toolbar.
   document.querySelectorAll('.toolbar .tool-btn[data-cmd], .toolbar .tool-divider').forEach(element => element.remove());
 
-  // Retain the original category buttons for the publishing logic, but show
-  // a single compact select instead of five permanent buttons.
   const categoryButtons = document.querySelector('.cat-selector');
   if (categoryButtons && !document.getElementById('write-category')) {
     const compact = document.createElement('select');
@@ -127,11 +124,9 @@ async function registerServiceWorker() {
   }
 }
 
-// Auth fallback must be in place before the shared studio initializes.
 installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
-// Writing should always open with maximum space for the document.
 localStorage.setItem('sulog_admin_sidebar_open', 'false');
 const { adminReady } = await import('../admin/admin.js?v=23');
 await adminReady;

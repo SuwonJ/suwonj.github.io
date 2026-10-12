@@ -1,14 +1,11 @@
 import { ensureCodeHighlighting } from './content-dependencies.js';
 import { escapeHtml } from './safe-html.js';
 
-// Reading pages share the same code highlighting, breadcrumb TOC and lightbox.
-// The route-specific wrappers own the content and optional research PDF viewer.
 export async function initializePostInteractions(container, post, {
   route,
   sectionTitle,
   sectionInitial
 }) {
-    // 코드가 있는 문서에서만 Highlight.js와 코드 폰트 로드
     const codeBlocks = Array.from(container.querySelectorAll('pre code'));
     if (codeBlocks.length > 0) await ensureCodeHighlighting();
     codeBlocks.forEach((block) => {
@@ -47,7 +44,6 @@ export async function initializePostInteractions(container, post, {
       });
     });
 
-    // Breadcrumb TOC 로직
     const headings = container.querySelectorAll("h1, h2, h3");
     headings.forEach((h, i) => {
       if (!h.id) h.id = "heading-" + i;
@@ -120,7 +116,6 @@ export async function initializePostInteractions(container, post, {
       }
     }
 
-    // Image Lightbox
     let lightbox = document.getElementById("lightbox");
     if (!lightbox) {
       lightbox = document.createElement("div");

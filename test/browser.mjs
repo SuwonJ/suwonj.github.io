@@ -141,7 +141,6 @@ try {
   assert.ok(await page.evaluate(() => window.preserved === document.querySelector('#preview-markdown-content').firstChild));
   results.push('worker preview, sanitization, metadata does not replace body');
 
-  // Regression: a stray backtick in the real IA must not swallow later math.
   const tick = String.fromCharCode(96);
   const iaExcerpt = [
     "엔트로피 $H(X|g=\\text{" + tick + "ㄴㅗㄴ'})$은 각 그룹의 엔트로피이다. ",
@@ -167,8 +166,6 @@ try {
 
 
 
-  // Switching to hidden preview modes should release the rendered DOM at once,
-  // without waiting for the normal 300 ms Markdown preview debounce.
   await page.locator('[data-write-mode=live]').click();
   assert.equal(await page.locator('#preview-markdown-content').evaluate(root => root.childNodes.length), 0);
   await page.locator('[data-write-mode=split]').click();
@@ -338,7 +335,6 @@ try {
   await offlinePage.waitForFunction(() => document.getElementById('status-draft').textContent.includes('로컬 저장됨'));
   results.push('offline app shell/editor/draft save works without CDN');
   await offlineContext.close();
-  // Cursor measurement after zooming the editor and changing its width.
   await page.locator('[data-write-mode=source]').click();
   await setDocument('좌표 확대 검증');
   await page.evaluate(() => { document.getElementById('cm-editor-host').style.zoom = '1.25'; window.sulogWriteEditor.requestMeasure(); });
@@ -349,12 +345,8 @@ try {
   await page.evaluate(() => { document.getElementById('cm-editor-host').style.zoom = ''; window.sulogWriteEditor.requestMeasure(); });
   results.push('zoomed editor cursor coordinate round trip');
 
-  // Public pages accept API data, including federated comments. The visible
-  // DOM must never interpret attacker-supplied event handlers or script URLs.
   const publicContext = await browser.newContext({ viewport: {width: 1280, height: 900}, serviceWorkers: 'block' });
   await publicContext.addInitScript(() => {
-    // Simulate the Marked HTML output, keeping raw HTML deliberately unsafe
-    // so the real, locally hosted DOMPurify integration is exercised.
     window.marked = { parse: source => source };
   });
   const maliciousBody = '<p>안전한 글</p><h2>제목 테스트</h2><img src=x onerror="window.postXss=1"><a href="javascript:alert(1)">evil</a><strong>유지할 강조</strong>';
@@ -395,8 +387,6 @@ try {
     }
     return route.fulfill({status:200,contentType:'application/json',body:'[]'});
   });
-  // All three list routes should retain their own URLs while sharing the
-  // same list/filter implementation.
   for (const root of ['/blog/', '/research/', '/log/']) {
     const listing = await publicContext.newPage();
     const listErrors = [];

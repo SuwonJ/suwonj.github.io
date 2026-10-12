@@ -1,7 +1,6 @@
 import { fetchPostsByTag } from './mastodon.js';
 import { escapeHtml } from './safe-html.js';
 
-// Content categories remain separate while list rendering and tag UI are shared.
 export async function renderPostList(container, { tag, route, title, emptyText, showAll = true }) {
   try {
     const breadcrumb = document.getElementById("nav-breadcrumb");

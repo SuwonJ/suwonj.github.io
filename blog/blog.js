@@ -44,13 +44,11 @@ async function renderPost(id, container) {
     const post = await fetchPostById(id);
     if (!post) throw new Error("포스트를 찾을 수 없습니다.");
 
-    // 1. 페이지 상단 제목 (순수 제목만 정돈)
     const titleEl = document.getElementById("page-title");
     if (titleEl) {
       titleEl.innerText = post.title;
     }
 
-    // 2. 제목 바로 아래 메타 바 (날짜 • 태그 • 마스토돈로고 · 막시무스로고 maximux 뱃지)
     const dateHtml = post.date ? `<span>${escapeHtml(post.date)}</span>` : "";
     const tags = post.tags || [];
     const tagHtml = tags.length > 0 
@@ -79,16 +77,13 @@ async function renderPost(id, container) {
     const tagContainer = document.getElementById("tag-container");
     if (tagContainer) tagContainer.innerHTML = metaBarHtml;
 
-    // 마크다운 파싱 및 렌더링
     let markdownText = normalizeMarkdownMath(post.markdown || "");
 
     await ensureMarkdown(markdownText);
-    // Render display equations before Markdown can confuse them with list boundaries.
     const preparedMarkdown = renderDisplayMath(markdownText, tex =>
       window.katex.renderToString(tex, { throwOnError: false, displayMode: true }));
     let parsedHtml = window.marked.parse(preparedMarkdown);
 
-    // 미디어 첨부파일 렌더링 (사진/영상)
     if (post.media && post.media.length > 0) {
       const mediaHtml = `
         <div class="post-media-gallery" style="display:grid; gap:1rem; margin:1.5rem 0;">
@@ -125,14 +120,12 @@ async function renderPost(id, container) {
         .catch(error => console.error("Failed to render comments:", error));
     }
 
-    // 첫 본문 이미지는 즉시 표시하고, 나머지는 스크롤 직전에만 디코딩한다.
     container.querySelectorAll("img").forEach((image, index) => {
       image.decoding = "async";
       image.loading = index === 0 ? "eager" : "lazy";
       if (index === 0) image.fetchPriority = "high";
     });
 
-    // 테이블 반응형 래핑
     container.querySelectorAll('table').forEach(table => {
       const wrapper = document.createElement('div');
       wrapper.className = 'table-wrapper';

@@ -109,8 +109,6 @@ function transformOutsideCode(text, transform) {
       let runEnd = cursor + 1;
       while (text[runEnd] === "`") runEnd += 1;
       const ticks = text.slice(cursor, runEnd);
-      // An unmatched backtick must not hide later Markdown paragraphs.
-      // IA source has a literal backtick in \text{...}, then another much later.
       const paragraphBoundary = /\n[ \t]*\n/g;
       paragraphBoundary.lastIndex = runEnd;
       const nextParagraph = paragraphBoundary.exec(text);
@@ -137,7 +135,6 @@ function transformOutsideCode(text, transform) {
 function normalizeMathText(text) {
   let normalized = text.replace(/==([^=]+)==/g, "<mark>$1</mark>");
 
-  // marked-katex-extension은 block math의 여닫는 $$가 각각 독립된 줄에 있어야 한다.
   normalized = normalized.replace(/(^|[^\\])\$\$([\s\S]*?)\$\$/g, (match, prefix, tex, offset, source) => {
     const delimiterStart = offset + prefix.length;
     const delimiterEnd = offset + match.length;
@@ -155,7 +152,6 @@ function normalizeMathText(text) {
   return normalized;
 }
 
-/** 코드 fence/span은 그대로 보존하고 그 밖의 Markdown에서만 수식과 하이라이트를 정규화한다. */
 export function normalizeMarkdownMath(text) {
   if (!text) return "";
   return transformOutsideCode(text, normalizeMathText);
@@ -215,11 +211,6 @@ export async function ensurePdfJs() {
   return window.pdfjsLib;
 }
 
-/**
- * Public posts are parsed from Markdown and comments arrive as Mastodon HTML.
- * Keep DOMPurify local and pin it to the version used by the editor preview.
- * Fail closed: never insert untrusted HTML when the sanitizer cannot load.
- */
 export async function sanitizeUntrustedHtml(html) {
   if (!window.DOMPurify?.sanitize) await loadScript('/assets/vendor/purify.min.js?v=3.4.16');
   if (!window.DOMPurify?.sanitize) throw new Error('HTML sanitizer unavailable');
@@ -230,10 +221,6 @@ export async function sanitizeUntrustedHtml(html) {
 }
 
 
-/** Render standalone $$ blocks before Markdown interprets list indentation.
- * Marked's Katex block tokenizer can otherwise pair a list item's closing
- * delimiter with a later opener, consuming headings and paragraphs as math.
- */
 export function renderDisplayMath(text, render) {
   if (!text || !text.includes('$$\n')) return text;
   return transformOutsideCode(text, section => section.replace(
