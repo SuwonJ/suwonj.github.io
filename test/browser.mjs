@@ -138,6 +138,15 @@ try {
   assert.ok(await page.evaluate(() => window.preserved === document.querySelector('#preview-markdown-content').firstChild));
   results.push('worker preview, sanitization, metadata does not replace body');
 
+  // Switching to hidden preview modes should release the rendered DOM at once,
+  // without waiting for the normal 300 ms Markdown preview debounce.
+  await page.locator('[data-write-mode=live]').click();
+  assert.equal(await page.locator('#preview-markdown-content').evaluate(root => root.childNodes.length), 0);
+  await page.locator('[data-write-mode=split]').click();
+  await page.evaluate(() => window.sulogRenderPreview());
+  assert.ok(await page.locator('#preview-markdown-content .katex').count());
+  results.push('hidden live preview skips offscreen DOM work and restores on return');
+
   await page.locator('[data-write-mode=source]').click();
   await setDocument('복원할 초안'); await page.locator('#input-title').fill('로컬 제목');
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+s');

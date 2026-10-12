@@ -248,6 +248,18 @@ function triggerPreviewUpdate() {
   clearTimeout(previewDebounceTimer);
   if (composing || window.sulogWriteEditor?.composing) return;
   const length = window.sulogEditor?.length ?? document.getElementById('editor-textarea').textLength;
+
+  // Source and live modes do not show the rendered preview. Skip scheduling
+  // Markdown/KaTeX work entirely, and discard an old preview immediately.
+  // The revision guard in updatePreview() also cancels in-flight results.
+  if (document.body.classList.contains('write-mode-source') ||
+      document.body.classList.contains('write-mode-live')) {
+    const root = document.getElementById('preview-markdown-content');
+    if (root.hasChildNodes()) root.replaceChildren();
+    renderedMarkdown = null;
+    document.getElementById('preview-meta-info').textContent = `${length} 자`;
+    return;
+  }
   previewDebounceTimer = setTimeout(() => { updatePreview(); }, length > 50000 ? 650 : 300);
 }
 async function updatePreview({ force = false } = {}) {
