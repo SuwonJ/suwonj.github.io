@@ -209,3 +209,17 @@ export async function ensurePdfJs() {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   return window.pdfjsLib;
 }
+
+/**
+ * Public posts are parsed from Markdown and comments arrive as Mastodon HTML.
+ * Keep DOMPurify local and pin it to the version used by the editor preview.
+ * Fail closed: never insert untrusted HTML when the sanitizer cannot load.
+ */
+export async function sanitizeUntrustedHtml(html) {
+  if (!window.DOMPurify?.sanitize) await loadScript('/assets/vendor/purify.min.js?v=3.4.16');
+  if (!window.DOMPurify?.sanitize) throw new Error('HTML sanitizer unavailable');
+  return window.DOMPurify.sanitize(String(html ?? ''), {
+    ADD_TAGS: ['annotation', 'semantics'],
+    ADD_ATTR: ['encoding']
+  });
+}

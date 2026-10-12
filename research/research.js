@@ -3,6 +3,8 @@ import { HalftoneBackground } from "../components/halftone.js";
 import { fetchPostsByTag, fetchPostById } from "../components/mastodon.js";
 import { ensureCodeHighlighting, ensureMarkdown, ensurePdfJs, normalizeMarkdownMath } from "../components/content-dependencies.js";
 import { commentsPlaceholder, renderComments } from "../components/comments.js";
+import { sanitizeUntrustedHtml } from "../components/content-dependencies.js";
+import { escapeHtml, safeHttpUrl } from "../components/safe-html.js";
 
 async function init() {
   renderNavbar();
@@ -40,14 +42,14 @@ async function renderPost(id, container) {
     }
 
     // 2. 제목 바로 아래 메타 바 (날짜 • 태그 • 마스토돈로고 · 막시무스로고 maximux 뱃지)
-    const dateHtml = post.date ? `<span>${post.date}</span>` : "";
+    const dateHtml = post.date ? `<span>${escapeHtml(post.date)}</span>` : "";
     const tags = post.tags || [];
     const tagHtml = tags.length > 0 
-      ? tags.map(t => `<a href="/research/?tags=${t}" class="tag" style="text-decoration:none;">#${t}</a>`).join(" ")
+      ? tags.map(t => `<a href="/research/?tags=${encodeURIComponent(t)}" class="tag" style="text-decoration:none;">#${escapeHtml(t)}</a>`).join(" ")
       : "";
 
     const maximuxBadgeHtml = `
-      <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="maximux-title-badge" title="Maximux (Mastodon Federation) 원본 글 보기 및 댓글 작성" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-family: monospace; font-weight: normal; color: var(--text-color, #fff); background: rgba(103, 133, 233, 0.12); border: 1px solid rgba(103, 133, 233, 0.3); padding: 0.15rem 0.55rem; border-radius: 5px; text-decoration: none; vertical-align: middle; transition: all 0.2s;">
+      <a href="${escapeHtml(safeHttpUrl(post.url))}" target="_blank" rel="noopener noreferrer" class="maximux-title-badge" title="Maximux (Mastodon Federation) 원본 글 보기 및 댓글 작성" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-family: monospace; font-weight: normal; color: var(--text-color, #fff); background: rgba(103, 133, 233, 0.12); border: 1px solid rgba(103, 133, 233, 0.3); padding: 0.15rem 0.55rem; border-radius: 5px; text-decoration: none; vertical-align: middle; transition: all 0.2s;">
         <img src="/assets/mastodon_logo.svg" alt="Mastodon" style="width:13px; height:13px; vertical-align:middle;" />
         <span style="opacity:0.5;">•</span>
         <img src="/assets/maximux_logo.svg" alt="Maximux" style="width:13px; height:13px; vertical-align:middle;" />
@@ -94,9 +96,9 @@ async function renderPost(id, container) {
         <div class="post-media-gallery" style="display:grid; gap:1rem; margin:1.5rem 0;">
           ${imageAndVideoMedia.map(m => {
             if (m.type === 'image') {
-              return `<img src="${m.url}" alt="${m.description || ''}" loading="lazy" decoding="async" style="max-width:100%; border-radius:8px; cursor:zoom-in;" />`;
+              return `<img src="${escapeHtml(safeHttpUrl(m.url))}" alt="${escapeHtml(m.description || '')}" loading="lazy" decoding="async" style="max-width:100%; border-radius:8px; cursor:zoom-in;" />`;
             } else if (m.type === 'video' || m.type === 'gifv') {
-              return `<video src="${m.url}" controls preload="metadata" style="max-width:100%; border-radius:8px;"></video>`;
+              return `<video src="${escapeHtml(safeHttpUrl(m.url))}" controls preload="metadata" style="max-width:100%; border-radius:8px;"></video>`;
             }
             return '';
           }).join('')}
@@ -117,7 +119,7 @@ async function renderPost(id, container) {
       parsedHtml = draftNoticeHtml + parsedHtml;
     }
 
-    container.innerHTML = parsedHtml;
+    container.innerHTML = await sanitizeUntrustedHtml(parsedHtml);
     const commentsRoot = container.querySelector("[data-comments-root]");
     if (commentsRoot) {
       void renderComments(id, post, commentsRoot)
@@ -141,11 +143,11 @@ async function renderPost(id, container) {
         pdfWrapper.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; font-family:monospace; font-size:0.9rem;">
             <span>📄 첨부 PDF 문서</span>
-            <a href="${pdfItem.url}" target="_blank" download style="color:var(--nav-text); text-decoration:underline;">PDF 다운로드 ↗</a>
+            <a href="${escapeHtml(safeHttpUrl(pdfItem.url))}" target="_blank" download style="color:var(--nav-text); text-decoration:underline;">PDF 다운로드 ↗</a>
           </div>
         `;
         container.appendChild(pdfWrapper);
-        void renderPdf(pdfItem.url, pdfWrapper)
+        void renderPdf(safeHttpUrl(pdfItem.url), pdfWrapper)
           .then(() => window.researchBg?.scanTargets())
           .catch(error => console.error("Failed to render PDF:", error));
       }
@@ -213,7 +215,7 @@ async function renderPost(id, container) {
         </a> 
         <span style="margin:0 0.3rem">/</span> 
         <a href="#" id="bc-title">
-          <span class="desktop-text">${post.title || "문서"}</span>
+          <span class="desktop-text">${escapeHtml(post.title || "문서")}</span>
           <span class="mobile-text">${(post.title || "문서").charAt(0)}</span>
         </a> 
         <span id="bc-toc-container"></span>
@@ -252,7 +254,8 @@ async function renderPost(id, container) {
         const updateToc = () => {
           if (floatingTocContainer) {
             floatingTocContainer.querySelectorAll('a').forEach(a => a.classList.remove('active'));
-            const activeA = floatingTocContainer.querySelector(`a[data-toc-id="${activeHeading.id}"]`);
+            const activeA = [...floatingTocContainer.querySelectorAll('a[data-toc-id]')]
+              .find(a => a.dataset.tocId === activeHeading.id);
             if (activeA) activeA.classList.add('active');
           }
         };
@@ -289,11 +292,12 @@ async function renderPost(id, container) {
     });
 
   } catch (error) {
-    container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
+    container.innerHTML = `<p style="color:#fc5c65;">${escapeHtml(error.message)}</p>`;
   }
 }
 
 async function renderPdf(fileUrl, targetContainer) {
+  if (!fileUrl) throw new Error('유효하지 않은 PDF 주소입니다.');
   const pdfContainer = document.createElement('div');
   pdfContainer.className = 'pdf-container';
   targetContainer.appendChild(pdfContainer);
@@ -316,7 +320,7 @@ async function renderPdf(fileUrl, targetContainer) {
       await page.render({ canvasContext: context, viewport }).promise;
     }
   } catch (e) {
-    pdfContainer.innerHTML = `<p><a href="${fileUrl}" target="_blank">PDF 문서 보기 ↗</a></p>`;
+    pdfContainer.innerHTML = `<p><a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">PDF 문서 보기 ↗</a></p>`;
   }
 }
 
@@ -350,7 +354,7 @@ async function renderPostList(container) {
     const tagHtml = `
         <div class="tag-list">
             ${tagsArray.map(tag => `
-              <span class="tag ${activeTags.includes(tag) ? "active" : ""}" data-tag="${tag}">#${tag}</span>
+              <span class="tag ${activeTags.includes(tag) ? "active" : ""}" data-tag="${escapeHtml(tag)}">#${escapeHtml(tag)}</span>
             `).join(" / ")}
         </div>
     `;
@@ -391,10 +395,10 @@ async function renderPostList(container) {
       <li style="margin-bottom: 1.2rem; list-style: none;">
         <div style="display:flex; justify-content:space-between; align-items:baseline; gap:1rem;">
           <a href="/research/?id=${post.id}" style="color:var(--text-color); text-decoration:none; font-weight:bold; font-size:1.1rem;" class="blog-post-link">
-            ${post.title}
+            ${escapeHtml(post.title)}
           </a>
           <span style="font-size:0.85rem; color:var(--breadcrumb-color, #888); font-family:monospace; white-space:nowrap;">
-            (${post.date})
+            (${escapeHtml(post.date)})
           </span>
         </div>
       </li>
@@ -407,7 +411,7 @@ async function renderPostList(container) {
     `;
 
   } catch (error) {
-    container.innerHTML = `<p style="color:#fc5c65;">${error.message}</p>`;
+    container.innerHTML = `<p style="color:#fc5c65;">${escapeHtml(error.message)}</p>`;
   }
 }
 

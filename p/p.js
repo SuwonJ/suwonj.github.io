@@ -1,4 +1,5 @@
 import { fetchPostById } from '../components/mastodon.js';
+import { escapeHtml } from '../components/safe-html.js';
 
 function showError(message) {
   const title = document.getElementById('page-title');
@@ -7,7 +8,7 @@ function showError(message) {
 
   if (title) title.textContent = '페이지를 열 수 없습니다';
   if (tagContainer) tagContainer.innerHTML = '';
-  if (content) content.innerHTML = `<p style="color:#fc5c65;">${message}</p>`;
+  if (content) content.innerHTML = `<p style="color:#fc5c65;">${escapeHtml(message)}</p>`;
 }
 
 async function init() {
