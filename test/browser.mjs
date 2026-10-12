@@ -25,7 +25,10 @@ const posts = [status('1','첫 글','본문 A'),status('2','둘째 글','본문 
 let delayed = false, releaseSource, releaseMedia, releasePublish;
 let pauseMedia = false, pausePublish = false;
 try {
-  browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/google/chrome/chrome', headless: true, args: ['--no-sandbox'] });
+  browser = await chromium.launch({
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+    headless: true, args: ['--no-sandbox']
+  });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
   await context.addInitScript(() => {
     localStorage.setItem('mastodon_access_token', 'test-token');

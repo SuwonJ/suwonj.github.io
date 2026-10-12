@@ -69,3 +69,5 @@ DOMPurify는 [Cure53 DOMPurify v3.4.16](https://github.com/cure53/DOMPurify/tree
 - `components/content-dependencies.js`: 방문자 Markdown/KaTeX 외부 라이브러리 로딩, 수식 정규화, HTML 정화. 공개 페이지는 편집기와 동일한 Marked 15.0.12 / KaTeX 0.16.22 / marked-katex-extension 5.1.4 버전을 사용한다.
 
 **남은 구조적 복잡성:** `/write/`가 여전히 `admin/admin.js`를 불러오는 호환 계층, 편집기 번들의 빌드 산출물 관리, Mastodon 게시글 커서 페이지네이션. 현재 동작을 망가뜨리면서 억지로 한 번에 합치지 않는다.
+
+브라우저 테스트 실행 환경: `npm ci && npm run build && npm test` 후 `npx playwright install chromium`, `npm run test:browser`. 필요하면 `CHROME_PATH=/path/to/chromium`으로 기존 시스템 브라우저를 지정한다. 빌드로 생성된 `assets/*.js`와 `write/precache.json`은 정적 호스팅 배포 전에 최신 상태인지 확인한다.
