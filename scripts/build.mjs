@@ -1,4 +1,3 @@
-import './sync-write.mjs';
 import { build } from 'esbuild';
 import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 await mkdir('assets/vendor', { recursive: true });

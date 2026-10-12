@@ -61,7 +61,10 @@ try {
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error' && /plugin|initialization|preview|RangeError|Uncaught/i.test(message.text())) errors.push(message.text()); });
-  await page.goto(origin + '/admin/');
+  const missingAdmin = await page.request.get(origin + '/admin/');
+  assert.equal(missingAdmin.status(), 404);
+  results.push('legacy admin route returns 404');
+  await page.goto(origin + '/write/');
   await page.waitForFunction(() => window.sulogEditor);
   assert.equal(await page.locator('.cm-editor').count(), 1);
   const setDocument = async text => page.evaluate(text => {
@@ -74,7 +77,7 @@ try {
   assert.equal(await page.evaluate(() => window.sulogEditor.value), '입력 테스트 abc');
   await page.keyboard.press('Control+z');
   assert.equal(await page.evaluate(() => window.sulogEditor.value), '입력 테스트');
-  results.push('admin shared editor input/undo');
+  results.push('write editor input/undo');
 
   const mixed = '# 제목\n\n**강조**와 $x^2$\n\n$$\na+b\n$$\n\n```python\n' + 'x = 1\n'.repeat(600) + '#comment\n> source\n$$not_math$$\n```\n\n끝';
   await setDocument(mixed);
@@ -253,7 +256,7 @@ try {
   await page.goto(origin + '/write/'); await page.waitForFunction(() => window.sulogEditor);
   assert.equal(await page.locator('.cm-editor').count(),1);
   assert.equal(await page.locator('#btn-export-pdf').count(),1);
-  results.push('write template and shared initialization');
+  results.push('write editor initialization');
   await page.locator('[data-write-mode=source]').click();
   await setDocument('한국어');
   await page.locator('.cm-content').click();
