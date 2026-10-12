@@ -5,7 +5,7 @@ let worker, workerUnavailable = false, sequence = 0, pending = new Map();
 export function parsePreview(text) {
   if (!window.Worker || workerUnavailable) return Promise.resolve(renderMarkdownBlocks(text));
   if (!worker) {
-    try { worker = new Worker('/assets/preview-worker.js?v=20', { type: 'module' }); }
+    try { worker = new Worker('/assets/preview-worker.js?v=25', { type: 'module' }); }
     catch { workerUnavailable = true; return Promise.resolve(renderMarkdownBlocks(text)); }
     worker.onmessage = ({ data }) => {
       const request = pending.get(data.id); if (!request) return;

@@ -2,7 +2,7 @@ import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
 import { fetchPostById } from "../components/mastodon.js";
 import { renderPostList } from "../components/post-list.js";
-import { ensureMarkdown, ensurePdfJs, normalizeMarkdownMath, sanitizeUntrustedHtml } from "../components/content-dependencies.js";
+import { ensureMarkdown, renderDisplayMath, ensurePdfJs, normalizeMarkdownMath, sanitizeUntrustedHtml } from "../components/content-dependencies.js";
 import { initializePostInteractions } from "../components/post-interactions.js";
 import { commentsPlaceholder, renderComments } from "../components/comments.js";
 import { escapeHtml, safeHttpUrl } from "../components/safe-html.js";
@@ -81,7 +81,10 @@ async function renderPost(id, container) {
     let markdownText = normalizeMarkdownMath(post.markdown || "");
 
     await ensureMarkdown(markdownText);
-    let parsedHtml = window.marked.parse(markdownText);
+    // Render display equations before Markdown can confuse them with list boundaries.
+    const preparedMarkdown = renderDisplayMath(markdownText, tex =>
+      window.katex.renderToString(tex, { throwOnError: false, displayMode: true }));
+    let parsedHtml = window.marked.parse(preparedMarkdown);
 
     // 미디어 첨부파일 파싱 (이미지, 비디오, PDF)
     const imageAndVideoMedia = [];

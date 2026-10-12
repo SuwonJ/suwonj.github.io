@@ -228,3 +228,16 @@ export async function sanitizeUntrustedHtml(html) {
     ADD_ATTR: ['encoding']
   });
 }
+
+
+/** Render standalone $$ blocks before Markdown interprets list indentation.
+ * Marked's Katex block tokenizer can otherwise pair a list item's closing
+ * delimiter with a later opener, consuming headings and paragraphs as math.
+ */
+export function renderDisplayMath(text, render) {
+  if (!text || !text.includes('$$\n')) return text;
+  return transformOutsideCode(text, section => section.replace(
+    /(^|\n)\$\$\n([\s\S]*?)\n\$\$(?=\n|$)/g,
+    (full, prefix, tex) => prefix + '<div class="math-display">' + render(tex.trim()) + '</div>'
+  ));
+}

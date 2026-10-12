@@ -157,6 +157,14 @@ try {
   await page.evaluate(() => window.sulogRenderPreview());
   await page.waitForFunction(() => document.querySelectorAll('#preview-markdown-content .katex-display').length >= 2);
   results.push('IA align and information gain render in write preview');
+  const iaText = await readFile(resolve('content/research/math-ia-current/mathiav2.md'), 'utf8');
+  await setDocument(iaText);
+  await page.evaluate(() => window.sulogRenderPreview());
+  await page.waitForFunction(() => document.querySelectorAll('#preview-markdown-content .katex-display').length >= 15);
+  assert.equal(await page.locator('#preview-markdown-content .katex-error').count(), 0);
+  assert.ok((await page.locator('#preview-markdown-content').innerText()).includes('본론 (Exploration)'));
+  results.push('complete IA document renders in write preview');
+
 
 
   // Switching to hidden preview modes should release the rendered DOM at once,

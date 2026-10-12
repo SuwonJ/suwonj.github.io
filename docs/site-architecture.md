@@ -71,3 +71,9 @@ DOMPurify는 [Cure53 DOMPurify v3.4.16](https://github.com/cure53/DOMPurify/tree
 **남은 구조적 복잡성:** `/write/`가 여전히 `admin/admin.js`를 불러오는 호환 계층, 편집기 번들의 빌드 산출물 관리, Mastodon 게시글 커서 페이지네이션. 현재 동작을 망가뜨리면서 억지로 한 번에 합치지 않는다.
 
 브라우저 테스트 실행 환경: `npm ci && npm run build && npm test` 후 `npx playwright install chromium`, `npm run test:browser`. 필요하면 `CHROME_PATH=/path/to/chromium`으로 기존 시스템 브라우저를 지정한다. 빌드로 생성된 `assets/*.js`와 `write/precache.json`은 정적 호스팅 배포 전에 최신 상태인지 확인한다.
+
+## 블록 수식의 Markdown 경계 (2026-10-12)
+
+기존 IA·EE는 목록 항목과 일반 문단 한가운데의 `$$...$$` 구문을 사용한다. 단순히 `$$`를 독립된 줄로 옮긴 다음 Marked에 맡기면 목록의 수식 종료 구분자가 다음 수식 시작 구분자와 결합하여 본문·제목을 KaTeX 오류 메시지로 오인할 수 있다. `components/content-dependencies.js`의 `renderDisplayMath()`가 코드 구간을 제외한 블록 수식을 KaTeX로 먼저 렌더링하고, 나머지를 Marked에 맡긴다. `components/markdown-engine.js`와 방문자 `blog.js`/`research.js`가 공통 처리 함수를 사용한다. `assets/preview.js`와 `assets/preview-worker.js`는 이 변경에 맞춰 배포용 코드를 동기화했다. 기존 문서 원문은 수정하지 않았다.
+
+장문 회귀 검사는 실제 `mathiav2.md`, `matheev2.md` 원문 전체를 대상으로 수식 개수·수식 오류·제목 보존을 검사한다. `npm run build` 후 생성 번들과 `write/precache.json`을 같이 커밋해야 한다.

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parser } from '@lezer/markdown';
+import { readFile } from 'node:fs/promises';
 import { mathMarkdown } from '../write/math-parser.js';
 import { formatText, stripMetadataTags } from '../components/editor-tools.js';
 import { renderMarkdown, renderMarkdownBlocks } from '../components/markdown-engine.js';
@@ -70,4 +71,26 @@ test('inline code and fenced code remain unchanged', () => {
   assert.ok(output.includes(tick + '$$literal$$' + tick));
   assert.ok(output.includes('~~~latex\n$$code$$\n~~~'));
   assert.ok(output.includes('$$\nx\n$$'));
+});
+
+test('complete IA and EE documents preserve all Markdown headings and display math', async () => {
+  for (const [filename, minDisplays] of [
+    ['math-ia-current/mathiav2.md', 15],
+    ['math-ee/matheev2.md', 22]
+  ]) {
+    const input = await readFile(new URL('../content/research/' + filename, import.meta.url), 'utf8');
+    const output = renderMarkdown(input);
+    assert.ok(!output.includes('class="katex-error"'), filename + ': invalid KaTeX');
+    assert.ok((output.match(/class="katex-display"/g) || []).length >= minDisplays, filename + ': lost display equations');
+    assert.ok(output.includes('<h1>본론 (Exploration)'), filename + ': heading was swallowed by math');
+    assert.ok(!output.includes('# 본론 (Exploration)'), filename + ': raw heading leaked');
+  }
+});
+
+test('display math protection keeps fenced Markdown and inline source untouched', () => {
+  const input = '~~~tex\n$$\na+b\n$$\n~~~\n\n$$x+1$$\n\n$$\ny+1\n$$';
+  const html = renderMarkdown(input);
+  assert.match(html, /\$\$\na\+b\n\$\$/);
+  assert.ok((html.match(/class="katex-display"/g) || []).length >= 2);
+  assert.ok(!html.includes('katex-error'));
 });

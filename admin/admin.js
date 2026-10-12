@@ -14,7 +14,7 @@ import {
 } from "../components/mastodon_oauth.js?v=22";
 
 import { parseMastodonStatus } from "../components/mastodon.js?v=21";
-import { parsePreview, commitPreview } from '../assets/preview.js?v=21';
+import { parsePreview, commitPreview } from '../assets/preview.js?v=25';
 import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=21';
 import { formatText } from '../components/editor-tools.js?v=21';
 import { normalizeMarkdownMath } from '../components/content-dependencies.js';
