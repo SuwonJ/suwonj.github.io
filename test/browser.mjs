@@ -346,7 +346,7 @@ try {
     // so the real, locally hosted DOMPurify integration is exercised.
     window.marked = { parse: source => source };
   });
-  const maliciousBody = '<p>안전한 글</p><img src=x onerror="window.postXss=1"><a href="javascript:alert(1)">evil</a><strong>유지할 강조</strong>';
+  const maliciousBody = '<p>안전한 글</p><h2>제목 테스트</h2><img src=x onerror="window.postXss=1"><a href="javascript:alert(1)">evil</a><strong>유지할 강조</strong>';
   const externalComment = {
     id: 'comment-1',
     in_reply_to_id: '911',
@@ -419,6 +419,8 @@ try {
     assert.equal(security.badLinks,false,routePath + ': dangerous link');
     assert.equal(security.injected,false,routePath + ': executable markup');
     assert.equal(security.markup,true,routePath + ': harmless rich text removed');
+    assert.equal(await publicPage.locator('#floating-toc a').count(), 1, routePath + ': heading TOC');
+    assert.ok((await publicPage.locator('#bc-title').textContent()).includes('제목'), routePath + ': breadcrumb');
     assert.deepEqual(publicErrors,[],routePath + ': runtime errors');
     await publicPage.close();
   }

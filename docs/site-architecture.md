@@ -59,3 +59,13 @@ DOMPurify는 [Cure53 DOMPurify v3.4.16](https://github.com/cure53/DOMPurify/tree
 기존 IA의 `\\text{`ㄴㅗㄴ'}`는 짝이 맞지 않는 백틱을 포함한다. Markdown 정규화기가 여러 문단을 건너 다음 백틱까지 인라인 코드로 처리하면 그 사이의 `$$...$$` 수식이 렌더링되지 않는다. `components/content-dependencies.js`는 코드 구간 인식을 현재 문단으로 제한한다. `admin/admin.js`는 이미 배포된 미리보기 Worker 번들에도 정규화가 적용되도록 입력 경계에서 처리한다.
 
 테스트: `npm test`(정규화·렌더링 단위 테스트), `npm run test:browser`(미리보기·공개 화면·목록). 브라우저 테스트는 자동화된 목 환경을 사용하므로 실제 Mastodon 서버에서의 엔드 투 엔드 점검을 대체하지 않는다.
+
+## 현재 렌더러 책임 분리 (2026-10-12)
+
+- `components/post-list.js`: `/blog/`, `/research/`, `/log/` 목록 조회·태그 필터·목록 HTML 공유. 카테고리와 페이지 주소는 호출자가 지정.
+- `components/post-interactions.js`: 코드 하이라이트 및 복사, breadcrumb/목차, 이미지 확대 동작 공유.
+- `blog/blog.js`: 블로그/개인 기록 글 본문 구성과 화면 초기화.
+- `research/research.js`: 연구 글 본문 및 PDF 첨부 표시. PDF.js 렌더링은 별도로 유지.
+- `components/content-dependencies.js`: 방문자 Markdown/KaTeX 외부 라이브러리 로딩, 수식 정규화, HTML 정화. 공개 페이지는 편집기와 동일한 Marked 15.0.12 / KaTeX 0.16.22 / marked-katex-extension 5.1.4 버전을 사용한다.
+
+**남은 구조적 복잡성:** `/write/`가 여전히 `admin/admin.js`를 불러오는 호환 계층, 편집기 번들의 빌드 산출물 관리, Mastodon 게시글 커서 페이지네이션. 현재 동작을 망가뜨리면서 억지로 한 번에 합치지 않는다.

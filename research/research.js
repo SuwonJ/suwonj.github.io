@@ -2,10 +2,9 @@ import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
 import { fetchPostById } from "../components/mastodon.js";
 import { renderPostList } from "../components/post-list.js";
-import { ensureMarkdown, ensurePdfJs, normalizeMarkdownMath } from "../components/content-dependencies.js";
+import { ensureMarkdown, ensurePdfJs, normalizeMarkdownMath, sanitizeUntrustedHtml } from "../components/content-dependencies.js";
 import { initializePostInteractions } from "../components/post-interactions.js";
 import { commentsPlaceholder, renderComments } from "../components/comments.js";
-import { sanitizeUntrustedHtml } from "../components/content-dependencies.js";
 import { escapeHtml, safeHttpUrl } from "../components/safe-html.js";
 
 async function init() {
