@@ -163,20 +163,20 @@ export function normalizeMarkdownMath(text) {
 
 export async function ensureMarkdown(markdownText) {
   if (typeof window.marked === "undefined") {
-    await loadScript("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.umd.js");
   }
 
   if (!markdownText || !markdownText.includes("$")) return;
 
   await Promise.all([
-    loadStyle("https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css"),
+    loadStyle("/assets/vendor/katex.min.css"),
     typeof window.katex === "undefined"
-      ? loadScript("https://cdn.jsdelivr.net/npm/katex/dist/katex.min.js")
+      ? loadScript("https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js")
       : Promise.resolve(),
   ]);
 
   if (typeof window.markedKatex === "undefined") {
-    await loadScript("https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/marked-katex-extension@5.1.4/lib/index.umd.js");
   }
 
   if (!katexConfigured && typeof window.markedKatex === "function") {
