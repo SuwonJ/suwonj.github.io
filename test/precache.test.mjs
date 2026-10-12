@@ -32,8 +32,8 @@ test('precache versions match the writing app entrypoints', async () => {
     ['/assets/studio-ui.css?v=24', html.includes('/assets/studio-ui.css?v=24')],
     ['/admin/admin.js?v=23', write.includes('../admin/admin.js?v=23')],
     ['/assets/editor.js?v=21', admin.includes('../assets/editor.js?v=21')],
-    ['/assets/preview.js?v=21', admin.includes('../assets/preview.js?v=21')],
-    ['/assets/preview-worker.js?v=20', preview.includes('/assets/preview-worker.js?v=20')]
+    ['/assets/preview.js?v=25', admin.includes('../assets/preview.js?v=25')],
+    ['/assets/preview-worker.js?v=25', preview.includes('/assets/preview-worker.js?v=25')]
   ];
   for (const [url, inSource] of dependencies) {
     assert.ok(inSource, `Update the expected app reference: ${url}`);
