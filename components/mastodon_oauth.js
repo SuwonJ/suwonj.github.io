@@ -1,5 +1,7 @@
-import { stripMetadataTags } from './editor-tools.js?v=21';
-import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, internalStatusKind, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=21';
+import { assertSourceReady, fetchSourceDocument, fetchSourceText } from './source-api.js?v=26';
+import { splitSourceThread, isReadableSource, joinSourceThread, readSourceChunk, decodeSourceThread, statusPlainText as rawStatusText } from './source-thread.js?v=26';
+import { stripMetadataTags } from './editor-tools.js?v=26';
+import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, internalStatusKind, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=26';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 
@@ -221,134 +223,21 @@ function extractTrailingTagBlock(statusText) {
   };
 }
 
-function tokenizeMarkdownBlocks(markdown) {
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
-  const blocks = [];
-  let buffer = [];
-  let protectedType = null;
-  let fenceMarker = null;
-
-  const flush = (protectedBlock = false) => {
-    if (!buffer.length) return;
-    const text = buffer.join('\n').trim();
-    if (text) blocks.push({ text, protected: protectedBlock });
-    buffer = [];
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (protectedType === 'code') {
-      buffer.push(line);
-      if (trimmed.startsWith(fenceMarker)) {
-        flush(true);
-        protectedType = null;
-        fenceMarker = null;
-      }
-      continue;
-    }
-    if (protectedType === 'math') {
-      buffer.push(line);
-      if (trimmed === '$$' && buffer.length > 1) {
-        flush(true);
-        protectedType = null;
-      }
-      continue;
-    }
-
-    const fenceMatch = trimmed.match(/^(```+|~~~+)/);
-    if (fenceMatch) {
-      flush(false);
-      protectedType = 'code';
-      fenceMarker = fenceMatch[1][0].repeat(fenceMatch[1].length);
-      buffer.push(line);
-      continue;
-    }
-    if (trimmed === '$$') {
-      flush(false);
-      protectedType = 'math';
-      buffer.push(line);
-      continue;
-    }
-    if (!trimmed) {
-      flush(false);
-      continue;
-    }
-    buffer.push(line);
-  }
-
-  flush(Boolean(protectedType));
-  return blocks;
-}
-
-function splitPlainBlock(text, limit) {
-  const chunks = [];
-  let rest = text.trim();
-  while (rest.length > limit) {
-    const windowText = rest.slice(0, limit + 1);
-    const minCut = Math.floor(limit * 0.45);
-    const candidates = [
-      windowText.lastIndexOf('\n'),
-      Math.max(windowText.lastIndexOf('. '), windowText.lastIndexOf('! '), windowText.lastIndexOf('? '), windowText.lastIndexOf('。 ')),
-      windowText.lastIndexOf(' ')
-    ];
-    let cut = candidates.find(index => index >= minCut);
-    if (cut == null || cut < 1) cut = limit;
-    else if (['. ', '! ', '? '].includes(windowText.slice(cut, cut + 2))) cut += 1;
-    chunks.push(rest.slice(0, cut).trimEnd());
-    rest = rest.slice(cut).trimStart();
-  }
-  if (rest) chunks.push(rest);
-  return chunks;
-}
-
-function packBlocks(blocks, limit) {
-  const chunks = [];
-  let current = '';
-  const flush = () => {
-    if (current.trim()) chunks.push(current.trim());
-    current = '';
-  };
-
-  for (const block of blocks) {
-    if (block.text.length > limit) {
-      flush();
-      if (block.protected) {
-        throw new Error(`하나의 코드/수식 블록이 Mastodon 한도(${limit}자)를 넘습니다. 블록을 나눠 주세요.`);
-      }
-      chunks.push(...splitPlainBlock(block.text, limit));
-      continue;
-    }
-    const next = current ? `${current}\n\n${block.text}` : block.text;
-    if (next.length <= limit) current = next;
-    else {
-      flush();
-      current = block.text;
-    }
-  }
-  flush();
-  return chunks;
-}
-
-async function splitStatusText(statusText) {
+async function splitStatusText(statusText, sourceText, visibility = selectedVisibility()) {
+  // Source API deliberately never exposes non-public statuses. Respect the
+  // author's visibility choice instead of silently changing it to public.
+  if (visibility !== 'public')
+    throw new Error('원문 API는 public 글만 지원합니다. 공개범위를 공개로 선택한 뒤 발행해 주세요.');
   const maxCharacters = await getMaxCharacters();
-  const limit = Math.max(100, maxCharacters - THREAD_SAFETY_MARGIN);
-  const { markdown, tags } = extractTrailingTagBlock(statusText);
-  const suffix = tags ? `\n\n${tags}` : '';
-  const firstLimit = limit - suffix.length;
-  if (firstLimit < 100) throw new Error('태그가 너무 길어 첫 타래에 본문을 넣을 공간이 없습니다.');
-
-  let chunks = packBlocks(tokenizeMarkdownBlocks(markdown), limit);
-  if (!chunks.length) chunks = [''];
-
-  if (chunks[0].length > firstLimit) {
-    const first = chunks.shift();
-    const firstBlocks = tokenizeMarkdownBlocks(first);
-    const firstChunks = packBlocks(firstBlocks, firstLimit);
-    chunks = [...firstChunks, ...chunks];
-  }
-
-  chunks[0] = `${chunks[0]}${suffix}`.trim();
-  return chunks;
+  const { markdown, tags: legacyTags } = extractTrailingTagBlock(statusText);
+  const source = sourceText ?? markdown;
+  const tags = sourceText == null ? legacyTags : statusText.slice(sourceText.length).replace(/^\n\n/, '');
+  if ((sourceText != null && !statusText.startsWith(sourceText)) || tags && !/^#[^\s#]+(?:[ \t]+#[^\s#]+)*$/u.test(tags))
+    throw new Error('본문과 메타데이터 태그 경계가 올바르지 않습니다.');
+  const sourceAccountId = await assertSourceReady();
+  const account = await fetchAccountInfo();
+  if (String(account?.id) !== sourceAccountId) throw new Error('원문 API에 설정된 작성자 계정으로 로그인해 주세요.');
+  return splitSourceThread(source, tags, maxCharacters - THREAD_SAFETY_MARGIN);
 }
 
 async function rawPostStatus({ statusText, spoilerText, mediaIds = [], inReplyToId = null, visibility = 'public', idempotencyKey = null }) {
@@ -413,7 +302,7 @@ function sourceText(status) {
 }
 
 function selectedVisibility() {
-  return document.getElementById('write-visibility')?.value || 'public';
+  return document.getElementById('write-visibility')?.value || localStorage.getItem('sulog_write_visibility') || 'public';
 }
 
 function vaultVisibility(rootVisibility) {
@@ -502,9 +391,10 @@ function attachDocumentInfo(root, textStatuses, mediaVaults) {
   };
 }
 
-export async function postStatus({ statusText, spoilerText, mediaIds = [], media = [], visibility = null }) {
-  const chunks = await splitStatusText(statusText);
+export async function postStatus({ statusText, sourceText: originalSource, spoilerText, mediaIds = [], media = [], visibility = null }) {
   const chosenVisibility = visibility || selectedVisibility();
+  originalSource ??= extractTrailingTagBlock(statusText).markdown;
+  const chunks = await splitStatusText(statusText, originalSource, chosenVisibility);
   const inputMedia = normalizedMedia(media, mediaIds);
   const created = [];
   let root;
@@ -532,7 +422,8 @@ export async function postStatus({ statusText, spoilerText, mediaIds = [], media
     const mediaVaults = await postMediaVaults({
       rootId: root.id, media: inputMedia, visibility: chosenVisibility, createdIds: created
     });
-    return attachDocumentInfo(root, textStatuses, mediaVaults);
+    if (await fetchSourceDocument([root.id, ...textStatuses.map(status => status.id)]) !== originalSource) throw new Error('게시된 원문 검증 실패');
+    return { ...attachDocumentInfo(root, textStatuses, mediaVaults), sulog_source_text: originalSource };
   } catch (error) {
     // A failed new document must not leave incomplete public posts behind.
     for (const id of created.reverse()) {
@@ -544,10 +435,17 @@ export async function postStatus({ statusText, spoilerText, mediaIds = [], media
   }
 }
 
-export async function updateStatus({ id, statusText, spoilerText, mediaIds = [], media = [] }) {
-  const chunks = await splitStatusText(statusText);
+export async function updateStatus({ id, statusText, sourceText: originalSource, spoilerText, mediaIds = [], media = [] }) {
   const original = await getStatusForEdit(id);
+  if (original.visibility !== 'public') throw new Error('public 글만 원문 프로토콜로 수정할 수 있습니다.');
+  originalSource ??= extractTrailingTagBlock(statusText).markdown;
+  const chunks = await splitStatusText(statusText, originalSource);
   const { textStatuses: existing, mediaVaults: existingVaults } = await loadDocument(original);
+  if (existing.some(status => status.visibility !== 'public')) throw new Error('모든 본문 청크가 public이어야 합니다.');
+  const previous = [];
+  for (const statusId of [id, ...existing.map(status => status.id)]) previous.push(await fetchSourceText(statusId));
+  if (isReadableSource(previous[0])) joinSourceThread(previous);
+  else if (readSourceChunk(previous[0])) decodeSourceThread(previous);
   const alreadyAttached = new Set(mediaDescriptors([original, ...existingVaults]).map(item => item.id));
   const desiredMedia = normalizedMedia(media, mediaIds);
   const additionalMedia = desiredMedia.filter(item => !alreadyAttached.has(item.id));
@@ -563,7 +461,7 @@ export async function updateStatus({ id, statusText, spoilerText, mediaIds = [],
 
   for (let i = 0; i < common; i += 1) {
     let status = existing[i];
-    if (sourceText(status) !== desired[i]) {
+    if ((previous[i + 1].startsWith(THREAD_MARKER) ? previous[i + 1].slice(THREAD_MARKER.length) : previous[i + 1]) !== desired[i]) {
       status = await rawUpdateStatus({
         id: status.id,
         statusText: `${THREAD_MARKER}${desired[i]}`,
@@ -594,7 +492,8 @@ export async function updateStatus({ id, statusText, spoilerText, mediaIds = [],
     media: additionalMedia,
     visibility: original.visibility || 'public'
   });
-  return attachDocumentInfo(root, finalText, [...existingVaults, ...newVaults]);
+  if (await fetchSourceDocument([root.id, ...finalText.map(status => status.id)]) !== originalSource) throw new Error('수정된 원문 검증 실패');
+  return { ...attachDocumentInfo(root, finalText, [...existingVaults, ...newVaults]), sulog_source_text: originalSource };
 }
 
 export async function deleteStatus(id) {
@@ -669,11 +568,12 @@ export async function fetchEditableStatus(status) {
     const response = await fetch(`${INSTANCE_URL}/api/v1/statuses/${id}/source`, {
       headers: { Authorization: `Bearer ${getStoredToken()}` }
     });
-    if (response.status === 404 || response.status === 403) return null;
     if (!response.ok) throw new Error(`원문 조회 실패 (${response.status})`);
     return response.json();
   }));
   if (sources.every(Boolean)) {
+    if (isReadableSource(sources[0].text)) { combined.sulog_source_text = joinSourceThread(sources.map(source => source.text)); return combined; }
+    if (readSourceChunk(sources[0].text)) { combined.sulog_source_text = decodeSourceThread(sources.map(source => source.text)); return combined; }
     const tags = (combined.tags || []).map(tag => tag.name);
     combined.sulog_source_text = sources.map((source, index) => {
       const text = index === 0 ? source.text : removeInternalMarker(source.text);

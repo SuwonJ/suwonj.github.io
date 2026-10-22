@@ -1,8 +1,9 @@
+import { renderBody } from '../assets/preview.js?v=26';
 import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
-import { fetchPostById } from "../components/mastodon.js";
+import { fetchPostById } from "../components/mastodon.js?v=26";
 import { renderPostList } from "../components/post-list.js";
-import { ensureMarkdown, renderDisplayMath, ensurePdfJs, normalizeMarkdownMath, sanitizeUntrustedHtml } from "../components/content-dependencies.js";
+import { ensurePdfJs, sanitizeUntrustedHtml } from "../components/content-dependencies.js";
 import { initializePostInteractions } from "../components/post-interactions.js";
 import { commentsPlaceholder, renderComments } from "../components/comments.js";
 import { escapeHtml, safeHttpUrl } from "../components/safe-html.js";
@@ -75,12 +76,9 @@ async function renderPost(id, container) {
     const tagContainer = document.getElementById("tag-container");
     if (tagContainer) tagContainer.innerHTML = metaBarHtml;
 
-    let markdownText = normalizeMarkdownMath(post.markdown || "");
-
-    await ensureMarkdown(markdownText);
-    const preparedMarkdown = renderDisplayMath(markdownText, tex =>
-      window.katex.renderToString(tex, { throwOnError: false, displayMode: true }));
-    let parsedHtml = window.marked.parse(preparedMarkdown);
+    const bodyRoot = document.createElement('div');
+    await renderBody(bodyRoot, post.source ?? post.markdown ?? '');
+    let parsedHtml = '<div data-document-body></div>';
 
     const imageAndVideoMedia = [];
     const pdfMedia = [];
@@ -124,6 +122,7 @@ async function renderPost(id, container) {
     }
 
     container.innerHTML = await sanitizeUntrustedHtml(parsedHtml);
+    container.querySelector("[data-document-body]").replaceWith(bodyRoot);
     const commentsRoot = container.querySelector("[data-comments-root]");
     if (commentsRoot) {
       void renderComments(id, post, commentsRoot)
@@ -154,13 +153,6 @@ async function renderPost(id, container) {
           .catch(error => console.error("Failed to render PDF:", error));
       }
     }
-
-    container.querySelectorAll('table').forEach(table => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'table-wrapper';
-      table.parentNode.insertBefore(wrapper, table);
-      wrapper.appendChild(table);
-    });
 
     await initializePostInteractions(container, post, {
       route: '/research/',

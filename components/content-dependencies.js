@@ -105,6 +105,14 @@ function transformOutsideCode(text, transform) {
       }
     }
 
+    // Backticks inside TeX (e.g. \text{`...}) are not Markdown code.
+    if (text[cursor] === '$' && (cursor === 0 || text[cursor - 1] !== '\\')) {
+      const delimiter = text[cursor + 1] === '$' ? '$$' : '$';
+      let end = text.indexOf(delimiter, cursor + delimiter.length);
+      while (end !== -1 && text[end - 1] === '\\') end = text.indexOf(delimiter, end + delimiter.length);
+      if (end !== -1) { cursor = end + delimiter.length; continue; }
+    }
+
     if (text[cursor] === "`") {
       let runEnd = cursor + 1;
       while (text[runEnd] === "`") runEnd += 1;
@@ -133,6 +141,7 @@ function transformOutsideCode(text, transform) {
 }
 
 function normalizeMathText(text) {
+  text = text.replace(/(^|\n)[ \t]*\$(?!\$)((?:[^$\\]|\\[\s\S])+)\$[ \t]*(?=\n|$)/g, (_, prefix, tex) => prefix + '$$\n' + tex.trim() + '\n$$');
   let normalized = text.replace(/==([^=]+)==/g, "<mark>$1</mark>");
 
   normalized = normalized.replace(/(^|[^\\])\$\$([\s\S]*?)\$\$/g, (match, prefix, tex, offset, source) => {

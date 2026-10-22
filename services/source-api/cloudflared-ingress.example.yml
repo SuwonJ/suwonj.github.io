@@ -1,0 +1,7 @@
+# Insert into the EXISTING tunnel's ingress list, BEFORE its final catch-all.
+# Keep every existing Mastodon/other ingress and the tunnel credentials unchanged.
+ingress:
+  - hostname: source.suwonmars.com
+    service: http://127.0.0.1:8788
+  # ... existing ingress rules ...
+  - service: http_status:404

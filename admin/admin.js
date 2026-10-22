@@ -1,3 +1,4 @@
+import { inspectDocument } from '../components/document.js?v=26';
 import {
   initiateOAuth,
   handleOAuthCallback,
@@ -11,13 +12,12 @@ import {
   fetchMyStatuses,
   fetchEditableStatus,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js?v=22";
+} from "../components/mastodon_oauth.js?v=26";
 
-import { parseMastodonStatus } from "../components/mastodon.js?v=21";
-import { parsePreview, commitPreview } from '../assets/preview.js?v=25';
-import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=21';
-import { formatText } from '../components/editor-tools.js?v=21';
-import { normalizeMarkdownMath } from '../components/content-dependencies.js';
+import { parseMastodonStatus } from "../components/mastodon.js?v=26";
+import { parsePreview, commitPreview } from '../assets/preview.js?v=26';
+import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=26';
+import { formatText } from '../components/editor-tools.js?v=26';
 
 const initialMode = localStorage.getItem('sulog_write_editor_mode') || 'split';
 document.body.classList.add(`write-mode-${['split', 'source', 'live', 'preview'].includes(initialMode) ? initialMode : 'split'}`);
@@ -41,7 +41,10 @@ let composing = false;
 const bodyValue = () => document.getElementById('editor-textarea').value;
 function changed() { revision++; dirty = true; previewRenderVersion++; }
 function replaceBody(text) {
-  document.getElementById('editor-textarea').value = text;
+  const textarea = document.getElementById('editor-textarea');
+  // Native textarea normalizes CRLF before CodeMirror is installed on startup.
+  if (!window.sulogEditor) textarea.sulogInitialSource = text;
+  textarea.value = text;
   renderedMarkdown = null; previewRenderVersion++; revision++;
 }
 
@@ -75,7 +78,7 @@ async function initAdminStudio() {
   window.addEventListener('pagehide', () => { saveDraft(); });
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   try {
-    const { installWriteEditor } = await import('../assets/editor.js?v=21');
+    const { installWriteEditor } = await import('../assets/editor.js?v=26');
     installWriteEditor();
   } catch (error) {
     console.error('Editor initialization failed:', error);
@@ -91,6 +94,7 @@ async function initAdminStudio() {
   }
 
   document.getElementById('input-title').disabled = false;
+  document.getElementById('input-title').readOnly = true;
   document.getElementById('input-tags').disabled = false;
   document.getElementById('editor-textarea').readOnly = false;
 
@@ -214,6 +218,7 @@ function setupToolbar() {
 }
 
 function applyFormat(textarea, cmd) {
+  if (inspectDocument(textarea.value).format === 'typst') return;
   if (window.sulogEditor) return window.sulogEditor.format(cmd);
   const start = textarea.selectionStart, end = textarea.selectionEnd;
   const format = formatText(cmd, textarea.value.slice(start, end));
@@ -239,7 +244,8 @@ function setupEditorAndPreview() {
   updatePreview();
 }
 function updatePreviewMeta() {
-  const title = document.getElementById('input-title').value.trim();
+  const title = inspectDocument(bodyValue()).title;
+  document.getElementById('input-title').value = title;
   const titleEl = document.getElementById('preview-title');
   titleEl.textContent = title || '제목 프리뷰...'; titleEl.style.color = title ? 'var(--text-main)' : 'var(--text-muted)';
   const tags = document.getElementById('input-tags').value.split(',').map(t => t.trim()).filter(Boolean);
@@ -269,7 +275,7 @@ async function updatePreview({ force = false } = {}) {
   if (text === renderedMarkdown && !force) return;
   const run = async () => {
     if (version !== previewRenderVersion) return false;
-    const html = await parsePreview(normalizeMarkdownMath(text));
+    const html = await parsePreview(text);
     if (version !== previewRenderVersion) return false;
     const complete = await commitPreview(root, html, () => version === previewRenderVersion, { force });
     if (complete) {
@@ -285,7 +291,11 @@ async function updatePreview({ force = false } = {}) {
     if (force && !complete) throw new Error('출력 준비 중 본문이 변경되었습니다. 다시 시도해 주세요.');
   } catch (error) {
     if (force) throw error;
-    if (version === previewRenderVersion) document.getElementById('preview-meta-info').textContent = '미리보기 실패 · 보기 모드를 전환해 다시 시도하세요';
+    if (version === previewRenderVersion) {
+      document.getElementById('preview-meta-info').textContent = '미리보기 실패';
+      const message = document.createElement('pre'); message.setAttribute('role', 'alert');
+      message.textContent = error.message; root.replaceChildren(message); renderedMarkdown = null;
+    }
     console.error('Preview failed:', error);
   }
 }
@@ -334,17 +344,17 @@ function setupPublishing() {
 
     if (btnPublish.disabled) return;
     const inputSession = documentSession, inputRevision = revision;
-    const titleVal = document.getElementById("input-title").value.trim();
+    const titleVal = inspectDocument(bodyValue()).title;
     const tagsVal = document.getElementById("input-tags").value.trim();
-    const markdownVal = document.getElementById("editor-textarea").value.trim();
+    const markdownVal = bodyValue();
 
     if (!titleVal) {
-      showToast("글 제목을 입력해 주세요.", "warning");
-      document.getElementById("input-title").focus();
+      showToast("본문 첫 줄에 # 제목 또는 = 제목을 입력해 주세요.", "warning");
+      window.sulogEditor?.focus();
       return;
     }
 
-    if (!markdownVal) {
+    if (!markdownVal.trim()) {
       showToast("본문 내용을 입력해 주세요.", "warning");
       document.getElementById("editor-textarea").focus();
       return;
@@ -383,7 +393,8 @@ function setupPublishing() {
         const updated = await updateStatus({
           id: publishingPost.id,
           statusText: fullStatusText,
-          spoilerText: titleVal,
+          spoilerText: '',
+          sourceText: markdownVal,
           media: publishingMedia
         });
 
@@ -421,7 +432,8 @@ function setupPublishing() {
 
         const result = await postStatus({
           statusText: fullStatusText,
-          spoilerText: titleVal,
+          spoilerText: '',
+          sourceText: markdownVal,
           media: publishingMedia
         });
 
@@ -728,7 +740,8 @@ async function startEditingPost(post) {
 
   // 제목, 본문, 태그 채우기
   document.getElementById("input-title").value = post.title || "";
-  replaceBody(post.markdown || "");
+  const source = post.source ?? post.markdown ?? '';
+  replaceBody(post.rawStatus?.spoiler_text && !inspectDocument(source).hasTitleHeading ? `# ${post.title}\n\n${source}` : source);
   document.getElementById("input-tags").value = (post.tags || []).join(", ");
 
   // 카테고리 동기화 (blog, research, tmp)
@@ -773,7 +786,7 @@ async function startEditingPost(post) {
   renderPostsList();
 
   // 에디터로 포커스
-  document.getElementById("input-title").focus();
+  window.sulogEditor?.focus();
 
   const threadMessage = post.threadChunks?.length
     ? ` 타래 ${post.threadChunks.length + 1}개를 하나의 문서로 합쳤습니다.`
@@ -819,7 +832,7 @@ async function startNewPost({ skipSave = false } = {}) {
   updatePreview();
   renderPostsList();
 
-  document.getElementById("input-title").focus();
+  window.sulogEditor?.focus();
   showToast("새 글 작성 모드로 전환되었습니다.", "add");
 }
 
@@ -878,7 +891,7 @@ async function saveDraft() {
   clearTimeout(autoSaveTimer);
   if (!dirty) return true;
   const session = documentSession, version = revision, id = currentEditingPost?.id || null;
-  const draft = { id, category: selectedCategory, title: document.getElementById('input-title').value,
+  const draft = { documentVersion: 1, id, category: selectedCategory, title: inspectDocument(bodyValue()).title,
     tags: document.getElementById('input-tags').value, markdown: bodyValue(), media: documentMedia.map(item => ({ ...item })),
     editingPost: currentEditingPost ? { id, title: currentEditingPost.title, category: selectedCategory, threadChecked: false } : null,
     savedAt: Date.now(), revision: version };
@@ -901,7 +914,7 @@ async function flushBeforeSwitch() { while (dirty) { if (!(await saveDraft())) r
 function applyDraft(draft) {
   document.getElementById('input-title').value = draft.title || '';
   document.getElementById('input-tags').value = draft.tags || '';
-  replaceBody(draft.markdown || '');
+  replaceBody(!draft.documentVersion && draft.title && !/^\s*(?:#|=)\s+/.test(draft.markdown || '') ? `# ${draft.title}\n\n${draft.markdown || ''}` : draft.markdown || '');
   documentMedia = draft.media || (draft.mediaIds || []).map(id => ({ id: String(id), type: 'image' }));
   selectedCategory = draft.category || 'blog';
   document.querySelectorAll('.cat-opt').forEach(opt => opt.classList.toggle('active', opt.dataset.cat === selectedCategory));

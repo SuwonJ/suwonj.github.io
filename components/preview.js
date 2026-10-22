@@ -1,11 +1,20 @@
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import { renderMarkdownBlocks } from './markdown-engine.js';
+import { inspectDocument } from './document.js?v=26';
+import { renderTypst } from './typst.js';
 let worker, workerUnavailable = false, sequence = 0, pending = new Map();
-export function parsePreview(text) {
+export async function parsePreview(source) {
+  const { format, body: text } = inspectDocument(source);
+  if (format === 'typst') {
+    const html = await renderTypst(text);
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('[style]').forEach(node => node.removeAttribute('style'));
+    return [doc.body.innerHTML];
+  }
   if (!window.Worker || workerUnavailable) return Promise.resolve(renderMarkdownBlocks(text));
   if (!worker) {
-    try { worker = new Worker('/assets/preview-worker.js?v=25', { type: 'module' }); }
+    try { worker = new Worker('/assets/preview-worker.js?v=26', { type: 'module' }); }
     catch { workerUnavailable = true; return Promise.resolve(renderMarkdownBlocks(text)); }
     worker.onmessage = ({ data }) => {
       const request = pending.get(data.id); if (!request) return;
@@ -20,13 +29,26 @@ export function parsePreview(text) {
   }
   return new Promise((resolve, reject) => { const id = ++sequence; pending.set(id, { resolve, reject, text }); worker.postMessage({ id, text }); });
 }
+export function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, { ADD_TAGS: ['annotation', 'semantics'], ADD_ATTR: ['encoding'], FORBID_TAGS: ['style', 'form'] });
+}
+function loadBodyStyle(name) {
+  const href = name.startsWith('https:') ? name : '/assets/vendor/' + name + '.min.css';
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = href; document.head.append(link);
+}
 export async function commitPreview(root, blocks, isCurrent, { force = false } = {}) {
   let cursor = root.firstChild, sliceStart = performance.now();
   const highlightBlocks = [];
   for (const html of blocks) {
     if (!isCurrent()) return false;
     const template = document.createElement('template');
-    template.innerHTML = DOMPurify.sanitize(html, { ADD_TAGS: ['annotation', 'semantics'], ADD_ATTR: ['encoding'] });
+    template.innerHTML = sanitizeHtml(html);
+    if (template.content.querySelector('.katex')) loadBodyStyle('katex');
+    if (template.content.querySelector('pre code')) {
+      loadBodyStyle('highlight');
+      loadBodyStyle('https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap');
+    }
     for (const table of template.content.querySelectorAll('table')) {
       const wrapper = document.createElement('div'); wrapper.className = 'table-wrapper';
       table.replaceWith(wrapper); wrapper.append(table);
@@ -38,6 +60,7 @@ export async function commitPreview(root, blocks, isCurrent, { force = false } =
     }
     for (const next of Array.from(template.content.childNodes)) {
       let kept = next;
+      // Ignore syntax highlighter DOM when comparing unchanged code blocks.
       const equal = (old, desired) => old?.isEqualNode(desired) || (old?.nodeName === 'PRE' && desired.nodeName === 'PRE' &&
         old.textContent === desired.textContent && old.querySelector('code')?.className.replace(/\bhljs\b/g, '').trim() === desired.querySelector('code')?.className.trim());
       if (equal(cursor, next)) { kept = cursor; cursor = cursor.nextSibling; }
@@ -50,7 +73,8 @@ export async function commitPreview(root, blocks, isCurrent, { force = false } =
   if (!isCurrent()) return false;
   while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
   const highlight = block => {
-    if (!block.isConnected || !isCurrent()) return;
+    if (!root.contains(block) || !isCurrent()) return;
+    // Only known languages: avoid expensive auto detection on huge code blocks.
     const language = block.className.match(/language-([\w-]+)/)?.[1];
     if (language && hljs.getLanguage(language)) hljs.highlightElement(block);
   };
@@ -65,4 +89,9 @@ export async function commitPreview(root, blocks, isCurrent, { force = false } =
     }
   }
   return true;
+}
+
+// Both published posts and the editor pass source through this same pipeline.
+export async function renderBody(root, source, options = {}) {
+  return commitPreview(root, await parsePreview(source), () => true, { force: true, ...options });
 }

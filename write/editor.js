@@ -1,11 +1,31 @@
+import { inspectDocument } from '../components/document.js';
 import { EditorView, basicSetup } from 'codemirror';
 import { Decoration, WidgetType, ViewPlugin, keymap, placeholder } from '@codemirror/view';
 import { Compartment, EditorState, StateField, StateEffect, EditorSelection } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { syntaxTree } from '@codemirror/language';
+import { StreamLanguage, syntaxTree } from '@codemirror/language';
 import katex from 'katex';
 import { formatText } from '../components/editor-tools.js';
 import { mathMarkdown } from './math-parser.js';
+const typstLanguage = StreamLanguage.define({
+  startState: () => ({ math: false, comment: false }),
+  token(stream, state) {
+    if (stream.sol() && stream.match(/=+\s+.*/)) return 'heading';
+    if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
+    if (stream.match('/*')) state.comment = true;
+    if (state.comment) { if (stream.skipTo('*/')) { stream.match('*/'); state.comment = false; } else stream.skipToEnd(); return 'comment'; }
+    if (stream.match(/"(?:[^"\\]|\\.)*"/)) return 'string';
+    if (stream.eat('$')) { state.math = !state.math; return 'keyword'; }
+    if (state.math) { stream.eatWhile(/[^$]/); return 'atom'; }
+    if (stream.match(/#[\w-]+/)) return 'keyword';
+    if (stream.match(/\b\d+(?:\.\d+)?\b/)) return 'number';
+    stream.next(); return null;
+  }
+});
+function documentFormat(state) {
+  for (const line of state.doc.iterLines()) if (line.trim()) return inspectDocument(line).format;
+  return 'markdown';
+}
 const MODE_KEY = 'sulog_write_editor_mode';
 const VALID_MODES = new Set(['split', 'source', 'live', 'preview']);
 function injectStyles() {
@@ -175,11 +195,12 @@ export function installWriteEditor() {
   const textarea = document.getElementById('editor-textarea'), container = document.querySelector('.editor-container');
   if (!textarea || !container || document.getElementById('cm-editor-host')) return null;
   const host = document.createElement('div'); host.id = 'cm-editor-host'; container.prepend(host);
-  const live = new Compartment();
+  const live = new Compartment(), language = new Compartment();
   let mode = localStorage.getItem(MODE_KEY) || 'split', snapshot, snapshotDoc;
   let bookmarks = new Set();
   const notify = () => textarea.dispatchEvent(new Event('input', { bubbles: true }));
   const applyFormat = cmd => {
+    if (documentFormat(view.state) === 'typst') return false;
     const change = view.state.changeByRange(range => {
       const format = formatText(cmd, view.state.sliceDoc(range.from, range.to));
       if (!format) return { range };
@@ -188,7 +209,9 @@ export function installWriteEditor() {
     });
     view.dispatch({ ...change, scrollIntoView: true, userEvent: 'input' }); view.focus(); return true;
   };
-  const extensions = () => [basicSetup, markdown({ extensions: [mathMarkdown] }), EditorView.lineWrapping, composing,
+  const languageFor = format => format === 'typst' ? typstLanguage : markdown({ extensions: [mathMarkdown] });
+  // Split only on LF: keep literal CR characters, including mixed CRLF/LF source.
+  const extensions = (text = '') => [EditorState.lineSeparator.of('\n'), basicSetup, language.of(languageFor(inspectDocument(text).format)), EditorView.lineWrapping, composing,
     placeholder(textarea.placeholder), EditorView.theme({ '&': { fontSize: '14px', height: '100%' }, '.cm-scroller': { overflow: 'auto' } }, { dark: true }),
     keymap.of([{ key: 'Mod-b', run: () => applyFormat('bold') }, { key: 'Mod-i', run: () => applyFormat('italic') },
       { key: 'Mod-k', run: () => applyFormat('link') }, { key: 'Mod-s', run: () => { document.dispatchEvent(new Event('sulog:save')); return true; } }]),
@@ -210,14 +233,20 @@ export function installWriteEditor() {
       if (!update.docChanged) return;
       for (const mark of bookmarks) mark.position = update.changes.mapPos(mark.position, 1);
       snapshotDoc = null; notify();
-    }), live.of(mode === 'live' ? [mathField, livePlugin] : [])];
-  const view = new EditorView({ parent: host, state: EditorState.create({ doc: textarea.value, extensions: extensions() }) });
+      if (documentFormat(update.state) !== documentFormat(update.startState)) queueMicrotask(() => {
+        const format = documentFormat(view.state);
+        view.dispatch({ effects: [language.reconfigure(languageFor(format)), live.reconfigure(mode === 'live' && format === 'markdown' ? [mathField, livePlugin] : [])] });
+      });
+    }), live.of(mode === 'live' && inspectDocument(text).format === 'markdown' ? [mathField, livePlugin] : [])];
+  const initialSource = textarea.sulogInitialSource ?? textarea.value;
+  const view = new EditorView({ parent: host, state: EditorState.create({ doc: initialSource, extensions: extensions(initialSource) }) });
+  delete textarea.sulogInitialSource;
   window.sulogWriteEditor = view;
   window.sulogEditor = {
     get value() { if (snapshotDoc !== view.state.doc) { snapshotDoc = view.state.doc; snapshot = snapshotDoc.toString(); } return snapshot; },
     get length() { return view.state.doc.length; },
     format: applyFormat,
-    replaceDocument(text) { bookmarks.clear(); view.setState(EditorState.create({ doc: text, extensions: extensions() })); snapshotDoc = null; },
+    replaceDocument(text) { bookmarks.clear(); view.setState(EditorState.create({ doc: text, extensions: extensions(text) })); snapshotDoc = null; },
     bookmark(position = view.state.selection.main.head) {
       const mark = { position }; bookmarks.add(mark);
       return { insert(text) { view.dispatch({ changes: { from: mark.position, insert: text }, userEvent: 'input' }); },
@@ -241,7 +270,7 @@ export function installWriteEditor() {
     mode = VALID_MODES.has(requested) ? requested : 'split'; localStorage.setItem(MODE_KEY, mode);
     document.body.classList.remove('write-mode-split', 'write-mode-source', 'write-mode-live', 'write-mode-preview'); document.body.classList.add(`write-mode-${mode}`);
     for (const button of switcher.children) { button.classList.toggle('active', button.dataset.writeMode === mode); button.setAttribute('aria-pressed', button.dataset.writeMode === mode); }
-    view.dispatch({ effects: live.reconfigure(mode === 'live' ? [mathField, livePlugin] : []) });
+    view.dispatch({ effects: live.reconfigure(mode === 'live' && documentFormat(view.state) === 'markdown' ? [mathField, livePlugin] : []) });
     document.getElementById('btn-preview-edit').hidden = mode !== 'preview';
     document.dispatchEvent(new CustomEvent('sulog:editor-mode-change', { detail: { mode } })); view.requestMeasure();
     if (mode !== 'preview') view.focus(); else document.getElementById('btn-preview-edit').focus();

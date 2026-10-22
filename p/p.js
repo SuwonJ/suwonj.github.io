@@ -1,4 +1,4 @@
-import { fetchPostById } from '../components/mastodon.js';
+import { fetchPostById } from '../components/mastodon.js?v=26';
 import { escapeHtml } from '../components/safe-html.js';
 
 function showError(message) {
@@ -27,7 +27,7 @@ async function init() {
 
     // 실제 렌더링은 기존 blog 상세 페이지 코드를 그대로 사용한다.
     // /p/?id=... 주소는 유지되며 blog.js가 현재 URL의 id를 읽어 렌더링한다.
-    await import('/blog/blog.js');
+    await import('/blog/blog.js?v=26');
   } catch (error) {
     console.error(error);
     showError('문서를 불러오는 중 오류가 발생했습니다.');

@@ -13,12 +13,14 @@
     "@codemirror/state": "6.7.4",
     "@codemirror/view": "6.43.11",
     "@lezer/markdown": "1.6.3",
+    "@typst-wasm/fonts": "1.0.0",
     "codemirror": "6.0.2",
     "dompurify": "3.4.16",
     "highlight.js": "11.11.1",
     "katex": "0.16.22",
     "marked": "15.0.12",
-    "marked-katex-extension": "5.1.4"
+    "marked-katex-extension": "5.1.4",
+    "typst-wasm": "1.0.0"
   },
   "devDependencies": {
     "esbuild": "0.25.12",

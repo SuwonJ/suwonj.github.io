@@ -6,7 +6,7 @@ export async function initializePostInteractions(container, post, {
   sectionTitle,
   sectionInitial
 }) {
-    const codeBlocks = Array.from(container.querySelectorAll('pre code'));
+    const codeBlocks = Array.from(container.querySelectorAll('pre code:not([data-highlighted])'));
     if (codeBlocks.length > 0) await ensureCodeHighlighting();
     codeBlocks.forEach((block) => {
       const pre = block.parentElement;

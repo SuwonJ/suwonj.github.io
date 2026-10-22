@@ -20,10 +20,11 @@ async function waitFor(predicate) {
   while(!predicate()) { if(Date.now()-start>5000) throw new Error('Mock request did not start'); await new Promise(resolve=>setTimeout(resolve,20)); }
 }
 const errors = [], results = [];
-const status = (id, title, text) => ({ id, spoiler_text: title, content: `<p>${text.replaceAll('\n','<br>')}</p>`, tags: [{name:'blog'}], account: {id:'account'}, replies_count: 0, media_attachments: [], created_at:'2026-10-04T00:00:00Z' });
+const status = (id, title, text) => ({ id, visibility: 'public', spoiler_text: title, content: `<p>${text.replaceAll('\n','<br>')}</p>`, tags: [{name:'blog'}], account: {id:'116979319977947616'}, replies_count: 0, media_attachments: [], created_at:'2026-10-04T00:00:00Z' });
 const posts = [status('1','첫 글','본문 A'),status('2','둘째 글','본문 B')];
 let delayed = false, releaseSource, releaseMedia, releasePublish;
 let pauseMedia = false, pausePublish = false;
+const publishedSources = new Map(posts.map(post => [post.id, `원문 ${post.id}\n\n\`\`\`python\n#comment\n  print(1)\n\`\`\`\n\n#blog`]));
 try {
   browser = await chromium.launch({
     ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
@@ -38,10 +39,11 @@ try {
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
+    if (url.hostname === 'source.suwonmars.com') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(url.pathname === '/health' ? { ready: true, protocol: 'SULOG-TEXT/2', accountId: '116979319977947616' } : { id: url.pathname.split('/')[2], text: publishedSources.get(url.pathname.split('/')[2]) }) });
     if (url.hostname !== 'maximux.suwonmars.com') return route.fulfill({ status: 204, body: '' });
     const path = url.pathname;
     let data;
-    if (path.includes('verify_credentials')) data = { id:'account',acct:'test',avatar:'' };
+    if (path.includes('verify_credentials')) data = { id:'116979319977947616',acct:'test',avatar:'' };
     else if (path.endsWith('/statuses') && route.request().method() === 'GET') data = posts;
     else if (path.endsWith('/instance')) data = { configuration:{statuses:{max_characters:1000000}} };
     else if (path.endsWith('/media')) {
@@ -51,6 +53,7 @@ try {
       if (pausePublish) await new Promise(resolve => releasePublish = resolve);
       const body = new URLSearchParams(route.request().postData());
       data = status(path.endsWith('/statuses') ? '3' : path.split('/')[4], body.get('spoiler_text'), body.get('status'));
+      publishedSources.set(data.id, body.get('status'));
     }
     else if (/\/statuses\/\d+\/source/.test(path)) {
       const id = path.split('/')[4];
@@ -136,7 +139,7 @@ try {
   assert.ok(await page.locator('#preview-markdown-content .katex').count());
   assert.equal(await page.locator('#preview-markdown-content [onerror]').count(),0);
   await page.evaluate(() => window.preserved = document.querySelector('#preview-markdown-content').firstChild);
-  await page.locator('#input-title').fill('제목 변경');
+  await page.locator('#input-tags').fill('metadata');
   await page.waitForTimeout(400);
   assert.ok(await page.evaluate(() => window.preserved === document.querySelector('#preview-markdown-content').firstChild));
   results.push('worker preview, sanitization, metadata does not replace body');
@@ -161,7 +164,7 @@ try {
   await page.evaluate(() => window.sulogRenderPreview());
   await page.waitForFunction(() => document.querySelectorAll('#preview-markdown-content .katex-display').length >= 15);
   assert.equal(await page.locator('#preview-markdown-content .katex-error').count(), 0);
-  assert.ok((await page.locator('#preview-markdown-content').innerText()).includes('본론 (Exploration)'));
+  assert.ok((await page.locator('#preview-markdown-content h1').allTextContents()).includes('본론 (Exploration)'));
   results.push('complete IA document renders in write preview');
 
 
@@ -173,8 +176,203 @@ try {
   assert.ok(await page.locator('#preview-markdown-content .katex').count());
   results.push('hidden live preview skips offscreen DOM work and restores on return');
 
+  await setDocument('= Typst 도입기\n\n본문입니다.\n\n== 첫 번째 소제목\n\n$ sum_(i=1)^n i $');
+  await page.evaluate(() => window.sulogRenderPreview());
+  assert.equal(await page.locator('#preview-title').textContent(), 'Typst 도입기');
+  assert.equal(await page.locator('#preview-markdown-content h1').count(), 0);
+  assert.ok(await page.locator('#preview-markdown-content h2').count());
+  assert.ok(await page.locator('#preview-markdown-content math, #preview-markdown-content svg').count());
+  assert.ok((await page.locator('#preview-markdown-content').textContent()).includes('본문입니다.'));
+  const same = await page.evaluate(async () => {
+    const { renderBody } = await import('/assets/preview.js?v=26');
+    const root = document.createElement('div'); document.body.append(root);
+    await renderBody(root, window.sulogEditor.value);
+    const equal = root.innerHTML === document.getElementById('preview-markdown-content').innerHTML;
+    root.remove(); return equal;
+  });
+  assert.ok(same);
+  await page.evaluate(async () => {
+    const { renderBody } = await import('/assets/preview.js?v=26');
+    const root = document.createElement('div'); document.body.append(root);
+    try {
+      await renderBody(root, '= 안전 검증\n\n#html.elem("span", attrs: (onclick: "window.attacked=1", style: "position:fixed"), [안전])');
+      if (root.querySelector('[onclick], [style], script') || !root.textContent.includes('안전')) throw new Error('Unsafe Typst HTML');
+      let rejected = false;
+      try { await renderBody(root, '= 오류 검증\n\n#let x = ('); } catch (error) { rejected = Boolean(error.message); }
+      if (!rejected) throw new Error('Invalid Typst must fail explicitly');
+    } finally { root.remove(); }
+  });
+  await page.locator('[data-write-mode=live]').click();
+  assert.equal(await page.locator('.cm-live-math-inline, .cm-live-math-block').count(), 0);
+  assert.ok(await page.locator('.cm-content .tok-keyword, .cm-content .ͼb').count() || await page.locator('.cm-content span').count());
+  await page.evaluate(() => window.sulogWriteEditor.dispatch({ changes: { from: 0, to: 1, insert: '#' } }));
+  await page.waitForFunction(() => document.querySelector('.cm-live-math-inline, .cm-live-math-block'));
+  await page.evaluate(() => window.sulogWriteEditor.dispatch({ changes: { from: 0, to: 1, insert: '=' } }));
+  await page.waitForFunction(() => !document.querySelector('.cm-live-math-inline, .cm-live-math-block'));
+  results.push('real Typst HTML, Korean prose, heading, math, shared body renderer, no Markdown math decorations');
+  await page.locator('[data-write-mode=split]').click();
+  const protocol = await page.evaluate(async () => {
+    const { postStatus, updateStatus, fetchEditableStatus, deleteStatus } = await import('/components/mastodon_oauth.js?protocol-test=1');
+    const { fetchPostById, fetchPostComments, parseMastodonStatus } = await import('/components/mastodon.js');
+    const nativeFetch = window.fetch;
+    const stored = new Map(), writes = []; let next = 100;
+    let ready = true, unavailable = false, omitted = null, branch = false;
+    const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    const json = value => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
+    window.fetch = async (url, init = {}) => {
+      const path = new URL(url, location.origin).pathname;
+      if (path.endsWith('/instance')) return json({ configuration: { statuses: { max_characters: 500 } } });
+      if (path.includes('verify_credentials')) return json({ id: '116979319977947616' });
+      if (new URL(url, location.origin).hostname === 'source.suwonmars.com') {
+        if (path === '/health') return json({ ready, protocol: 'SULOG-TEXT/2', accountId: '116979319977947616' });
+        if (unavailable) return new Response('{}', { status: 503 });
+        const key = path.split('/')[2];
+        return json({ id: key, text: stored.get(key)?.raw });
+      }
+      if (path.endsWith('/source')) { const key = path.split('/')[4]; return json({ id: key, text: stored.get(key)?.raw }); }
+      const id = path.split('/')[4];
+      if (init.method === 'DELETE') { stored.delete(id); return json({}); }
+      if (init.method === 'POST' || init.method === 'PUT') {
+        const body = new URLSearchParams(init.body);
+        writes.push({ text: body.get('status'), spoiler: body.get('spoiler_text'), media: body.getAll('media_ids[]') });
+        if ([...body.get('status')].length > 500) throw new Error('Instance character limit exceeded');
+        const key = init.method === 'POST' ? String(next++) : id;
+        const old = stored.get(key);
+        const status = { id: key, visibility: body.get('visibility') || old?.visibility || 'public', raw: body.get('status'), content: '<p>' + escape(body.get('status')).replaceAll('\n', '<br>') + '</p>',
+          account: { id: '116979319977947616', username: 'test', acct: 'test' }, tags: [{ name: 'blog' }, { name: '수학' }],
+          in_reply_to_id: body.get('in_reply_to_id') || old?.in_reply_to_id || null,
+          media_attachments: [], spoiler_text: body.get('spoiler_text') || '', replies_count: 1,
+          created_at: '2026-10-20T00:00:00Z', url: 'https://example.com/' + key };
+        stored.set(key, status); return json(status);
+      }
+      if (path.endsWith('/context')) {
+        const available = [...stored.values()].filter(s => s.id !== id && s.id !== omitted);
+        // Reproduce Mastodon's public 20-level context window for long threads.
+        const descendants = available.filter(s => s.in_reply_to_id === id && s.raw?.startsWith('\u2063\u2064'));
+        let parent = id;
+        for (let i = 0; i < 20; i++) {
+          const next = available.find(s => s.in_reply_to_id === parent && s.raw?.startsWith('\u2063\u2063'));
+          if (!next) break;
+          descendants.push(next); parent = next.id;
+        }
+        if (branch && descendants.some(s => s.raw?.startsWith('\u2063\u2063'))) {
+          const next = descendants.find(s => s.raw?.startsWith('\u2063\u2063'));
+          descendants.push({ ...next, id: '999' });
+        }
+        return json({ descendants });
+      }
+      return json(stored.get(id));
+    };
+    try {
+      const source = '\n= 정확한 원문 😀\r\n\r\n' + '#let x = "<&>"\n  공백\t  \r\n$ sum_(i=1)^n i $\n\n#blog\n'.repeat(160) + '\n\n';
+      const root = await postStatus({ statusText: source + '\n\n#blog #수학', sourceText: source, spoilerText: '', mediaIds: ['media1'] });
+      if (writes.some(w => w.text.includes('SULOG-SOURCE/1')) || !writes[0].text.includes('정확한 원문')) throw new Error('Unreadable new publication');
+      stored.get(root.id).tags.push({ name: 'tmp' });
+      const publicPost = await fetchPostById(root.id);
+      if (publicPost?.source !== source) throw new Error('Public source differs');
+      if (publicPost.title !== '정확한 원문 😀' || publicPost.format !== 'typst') throw new Error('Metadata differs');
+      if (publicPost.category !== 'blog') throw new Error('Body hashtag changed category');
+      if (publicPost.tags.join(',') !== '수학') throw new Error('Tags differ');
+      const editable = await fetchEditableStatus(stored.get(root.id));
+      if (parseMastodonStatus(editable).source !== source) throw new Error('Editable source differs');
+      if ((await fetchPostComments(root.id)).length) throw new Error('Document chunks became comments');
+      if (writes.some(write => write.spoiler) || writes[0].media.length || writes.filter(write => write.media.includes('media1')).length !== 1) throw new Error('CW or media vault changed');
+      const oldIds = root.sulog_thread_chunk_ids;
+      const longEdit = source.replace('정확한', '변경된');
+      const edited = await updateStatus({ id: root.id, statusText: longEdit + '\n\n#blog #수학', sourceText: longEdit, spoilerText: '' });
+      if (edited.id !== root.id || edited.sulog_thread_chunk_ids.join(',') !== oldIds.join(',')) throw new Error('IDs changed');
+      if ((await fetchPostById(root.id)).source !== longEdit) throw new Error('Long update differs');
+      unavailable = true;
+      if (await fetchPostById(root.id) !== null) throw new Error('API failure rendered a document');
+      unavailable = false; omitted = oldIds[0];
+      if (await fetchPostById(root.id) !== null) throw new Error('Missing chunk rendered a document');
+      const writesBeforeMissingEdit = writes.length;
+      let missingEditRejected = false;
+      try { await updateStatus({ id: root.id, statusText: longEdit + '\n\n#blog #수학', sourceText: longEdit }); } catch { missingEditRejected = true; }
+      if (!missingEditRejected || writes.length !== writesBeforeMissingEdit) throw new Error('Missing chunk was overwritten');
+      omitted = null; branch = true;
+      if (await fetchPostById(root.id) !== null) throw new Error('Ambiguous chain rendered a document');
+      branch = false; ready = false;
+      const before = writes.length;
+      let rejected = false;
+      try { await postStatus({ statusText: source + '\n\n#blog', sourceText: source }); } catch { rejected = true; }
+      if (!rejected || writes.length !== before) throw new Error('Publication was not blocked before writes');
+      ready = true;
+      localStorage.setItem('sulog_write_visibility', 'unlisted');
+      document.getElementById('write-visibility').value = 'unlisted';
+      let visibilityRejected = false;
+      try { await postStatus({ statusText: source + '\n\n#blog', sourceText: source }); } catch { visibilityRejected = true; }
+      localStorage.removeItem('sulog_write_visibility');
+      document.getElementById('write-visibility').value = 'public';
+      if (!visibilityRejected || writes.length !== before) throw new Error('Unlisted choice was silently published');
+      const updatedSource = '= 수정된 제목\n\n== 수식\n\n$ x^2 $\n  끝  \n';
+      await updateStatus({ id: root.id, statusText: updatedSource + '\n\n#blog #수학', sourceText: updatedSource, spoilerText: '', existingThread: root.sulog_thread_chunks });
+      if ((await fetchPostById(root.id)).source !== updatedSource) throw new Error('Edited source differs');
+      const markdown = '# Markdown 원문\r\n\t  본문\n\n#blog\n\n';
+      const md = await postStatus({ statusText: markdown + '\n\n#blog', sourceText: markdown });
+      if ((await fetchPostById(md.id)).source !== markdown) throw new Error('Markdown source differs');
+      stored.set('700', { id: '700', visibility: 'public', account: { id: '116979319977947616' }, tags: [{ name: 'blog' }],
+        content: '<p>SULOG-SOURCE/1 1/1 39472c38<br>PSDquLDsobQgVHlwc3QKCu2VnOq4gCAkIHheMiAkDQoJ64GdICA=</p>' });
+      unavailable = true;
+      if ((await fetchPostById('700')).source !== '= 기존 Typst\n\n한글 $ x^2 $\r\n\t끝  ') throw new Error('Legacy Base64 read failed');
+      unavailable = false;
+      await deleteStatus(root.id);
+      if (stored.has(root.id) || oldIds.some(id => stored.has(id))) throw new Error('Thread deletion failed');
+      return { chunks: root.sulog_thread_chunks.length + 1, writes: writes.length };
+
+    } finally { window.fetch = nativeFetch; }
+  });
+  assert.ok(protocol.chunks > 1);
+  results.push({ 'mocked Typst publish/public read/edit round trip; CW/media/tags/comments': protocol });
+  // Exercise the actual published routes with public readable source responses.
+  const fixtures = await page.evaluate(async () => {
+    const { splitSourceThread } = await import('/components/source-thread.js');
+    const source = '= 공개 Typst 검증\n\n본문입니다.\n\n== 소제목\n\n$ sum_(i=1)^n i $';
+    return { source, chunks: splitSourceThread(source, '#page #수학', 488) };
+  });
+  const publicStatuses = fixtures.chunks.map((text, i) => ({
+    ...status(String(900 + i), '', (i ? '\u2063\u2063' : '') + text),
+    tags: [{ name: 'page' }, { name: '수학' }], in_reply_to_id: i ? String(899 + i) : null, replies_count: fixtures.chunks.length - 1
+  }));
+  await context.route('https://source.suwonmars.com/status/9*', route => {
+    const id = new URL(route.request().url()).pathname.split('/')[2];
+    const i = Number(id) - 900;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ id, text: (i ? '\u2063\u2063' : '') + fixtures.chunks[i] }) });
+  });
+  const markdownFixture = status('800', '', '# 기존 Markdown\n\n## 소제목\n\n$x^2$\n\n```js\nconst x = 1;\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![이미지](/assets/maximux_logo.svg)');
+  await context.route('**/api/v1/statuses/9*', route => {
+    const path = new URL(route.request().url()).pathname;
+    const data = path.endsWith('/context') ? { descendants: publicStatuses.slice(1) } : publicStatuses.find(s => s.id === path.split('/')[4]);
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(data) });
+  });
+  await context.route('**/api/v1/statuses/800*', route => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify(route.request().url().endsWith('/context') ? { descendants: [] } : markdownFixture)
+  }));
+  const published = await context.newPage();
+  published.on('pageerror', error => errors.push(error.message));
+  for (const route of ['/blog/?id=900', '/research/?id=900', '/p/?id=900']) {
+    await published.goto(origin + route);
+    await published.waitForSelector('#content math');
+    assert.equal(await published.locator('#page-title').textContent(), '공개 Typst 검증');
+    assert.equal(await published.locator('#content h2').textContent(), '소제목');
+    assert.equal(await published.locator('#content h1').count(), 0);
+  }
+  await mkdir('/tmp/sulog-editor-check', { recursive: true });
+  await published.screenshot({ path: '/tmp/sulog-editor-check/typst-research.png' });
+  await published.goto(origin + '/blog/?id=800');
+  await published.waitForSelector('#content .katex');
+  assert.equal(await published.locator('#page-title').textContent(), '기존 Markdown');
+  assert.equal(await published.locator('#content h1').textContent(), '기존 Markdown');
+  assert.equal(await published.locator('#content .table-wrapper table').count(), 1);
+  assert.equal(await published.locator('#content .table-wrapper .table-wrapper').count(), 0);
+  assert.equal(await published.locator('#content pre code.hljs').count(), 1);
+  assert.equal(await published.locator('#content .code-copy-btn').count(), 1);
+  await published.locator('#content img').first().click();
+  assert.ok(await published.locator('#lightbox').evaluate(el => el.classList.contains('active')));
+  await published.close();
+  results.push('published blog/research Typst HTML and existing Markdown math/code/table/image interactions');
   await page.locator('[data-write-mode=source]').click();
-  await setDocument('복원할 초안'); await page.locator('#input-title').fill('로컬 제목');
+  await setDocument('복원할 초안'); assert.equal(await page.locator('#input-title').getAttribute('readonly'), '');
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+s');
   await page.waitForFunction(() => document.getElementById('status-draft').textContent.includes('로컬 저장됨'));
   await page.reload(); await page.waitForFunction(() => window.sulogEditor);
@@ -210,7 +408,7 @@ try {
   assert.equal(await page.locator('#editing-post-id').textContent(),'2');
   await page.locator('#btn-toggle-sidebar').click();
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+z');
-  assert.match(await page.evaluate(() => window.sulogEditor.value), /^원문 2/);
+  assert.match(await page.evaluate(() => window.sulogEditor.value), /^# 둘째 글\n\n원문 2/);
   results.push('stale open response ignored and per-document undo history');
 
   await setDocument('AB');
@@ -237,7 +435,7 @@ try {
   await page.waitForFunction(() => document.getElementById('status-draft').textContent.includes('로컬 저장됨'));
   results.push('draft failure is visible and retry succeeds');
 
-  await page.locator('#input-title').fill('발행 검증');
+  await setDocument('# 발행 검증\n\n본문');
   pausePublish = true;
   await page.locator('#btn-publish').click();
   await waitFor(() => releasePublish);
@@ -359,8 +557,9 @@ try {
     media_attachments: [{type:'image',url:'javascript:alert(1)',description:'" onerror="window.mediaXss=1'}]
   };
   await publicContext.route('**/*', async route => {
-    const url = new URL(route.request().url);
+    const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
+    if (url.hostname === 'source.suwonmars.com') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(url.pathname === '/health' ? { ready: true, protocol: 'SULOG-TEXT/2', accountId: '116979319977947616' } : { id: url.pathname.split('/')[2], text: publishedSources.get(url.pathname.split('/')[2]) }) });
     if (url.hostname !== 'maximux.suwonmars.com') return route.fulfill({status:204,body:''});
     if (/\/api\/v1\/statuses\/\d+\/context$/.test(url.pathname)) return route.fulfill({
       contentType:'application/json',body:JSON.stringify({descendants:[externalComment]})

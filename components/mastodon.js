@@ -1,5 +1,8 @@
-import { stripMetadataTags } from './editor-tools.js?v=21';
-import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=21';
+import { fetchSourceDocument } from './source-api.js?v=26';
+import { inspectDocument } from './document.js?v=26';
+import { readSourceChunk, decodeSourceThread, statusPlainText as rawStatusText, isReadableSource, readableExcerpt, readableMetadataTags } from './source-thread.js?v=26';
+import { stripMetadataTags } from './editor-tools.js?v=26';
+import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=26';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 const ACCOUNT_ID = "116979319977947616";
@@ -29,6 +32,10 @@ export async function fetchPostsByTag(tag) {
 }
 
 function statusContentToMarkdown(status, { removeTags = true } = {}) {
+  if (status.sulog_source_text != null) return status.sulog_source_text;
+  const raw = rawStatusText(status);
+  if (isReadableSource(raw)) return readableExcerpt(raw);
+  if (readSourceChunk(raw)) return decodeSourceThread([raw], { partial: true });
   if (status.sulog_source_text == null && status.sulog_root_content != null) {
     const root = statusContentToMarkdown(
       { ...status, content: status.sulog_root_content, sulog_root_content: null },
@@ -63,8 +70,21 @@ export async function fetchPostById(id) {
       instanceUrl: INSTANCE_URL,
       accountId: status.account?.id
     });
-    const chunks = textStatuses.map(reply => statusContentToMarkdown(reply, { removeTags: false }));
-    post.markdown = [post.markdown, ...chunks].filter(Boolean).join('\n\n');
+    const raw = rawStatusText(status);
+    if (isReadableSource(raw)) {
+      post.source = await fetchSourceDocument([id, ...textStatuses.map(reply => reply.id)]);
+    } else if (readSourceChunk(raw)) {
+      post.source = decodeSourceThread([status, ...textStatuses].map(rawStatusText));
+    } else if (inspectDocument(post.markdown).format === 'typst') {
+      post.source = await fetchSourceDocument([id, ...textStatuses.map(reply => reply.id)], { requireProtocol: false });
+    } else {
+      const chunks = textStatuses.map(reply => statusContentToMarkdown(reply, { removeTags: false }));
+      post.source = [post.markdown, ...chunks].filter(Boolean).join('\n\n');
+    }
+    post.markdown = post.source;
+    const info = inspectDocument(post.source, status.spoiler_text);
+    post.title = info.title || post.title;
+    post.format = info.format;
     post.threadChunkIds = textStatuses.map(reply => reply.id);
     post.threadLength = textStatuses.length + 1;
     return post;
@@ -120,7 +140,7 @@ export async function fetchPostComments(id) {
  * 긴 문서의 reply chunk 결합은 fetchPostById()가 담당한다.
  */
 export function parseMastodonStatus(status) {
-  const allTags = (status.tags || []).map(t => t.name);
+  const allTags = readableMetadataTags(rawStatusText(status)) ?? (status.tags || []).map(t => t.name);
 
   const categoryTags = [
     "blog", "research", "page", "link", "personal", "개인", "tmp", "draft",
@@ -150,27 +170,14 @@ export function parseMastodonStatus(status) {
     ? status.sulog_source_text
     : statusContentToMarkdown(status, { removeTags: true });
 
-  let title = "";
-  if (status.spoiler_text && status.spoiler_text.trim().length > 0) {
-    title = status.spoiler_text.trim();
-  }
-
-  // Extract a legacy title without trimming/rebuilding the remaining document.
-  const first = /^(?:[ \t]*\n)*([^\n]+)(?:\n|$)/.exec(markdownText);
-  if (!title && first) {
-    const line = first[1].trim();
-    const explicit = /^title\s*:\s*/i.test(line) || /^\[.+\]$/.test(line);
-    if (explicit) {
-      title = /^title\s*:/i.test(line) ? line.replace(/^title\s*:\s*/i, '') : line.slice(1, -1);
-      markdownText = markdownText.slice(first[0].length);
-    } else if (!line.startsWith('#')) title = line.length > 50 ? line.slice(0, 50) + '...' : line;
-  }
-
-  if (!title) title = "무제 포스트";
+  const info = inspectDocument(markdownText, status.spoiler_text?.trim());
+  const title = info.title || '무제 포스트';
 
   return {
     id: status.id,
     title,
+    source: markdownText,
+    format: info.format,
     markdown: markdownText,
     date: status.created_at ? status.created_at.split("T")[0] : "",
     tags: displayTags,

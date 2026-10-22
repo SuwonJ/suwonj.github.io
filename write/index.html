@@ -907,7 +907,7 @@
         #preview-markdown-content > * { content-visibility: auto; contain-intrinsic-size: auto 100px; }
         @media print { #preview-markdown-content > * { content-visibility: visible; } }
     </style>
-    <link rel="stylesheet" href="/assets/studio-ui.css?v=24">
+    <link rel="stylesheet" href="/assets/studio-ui.css?v=26">
 </head>
 <body class="write-minimal">
 
@@ -988,7 +988,7 @@
 
             <div class="config-bar">
                 <div class="title-row">
-                    <input type="text" aria-label="글 제목" id="input-title" class="input-title" disabled placeholder="글 제목" autofocus>
+                    <input type="text" aria-label="본문에서 추출한 제목" id="input-title" class="input-title" disabled readonly placeholder="본문 첫 줄: # 제목 또는 = 제목">
                 </div>
                 <div class="metadata-row">
                     <div class="metadata-field metadata-category">
@@ -1031,7 +1031,7 @@
 
             <!-- Editor Textarea -->
             <div class="editor-container">
-                <textarea aria-label="마크다운 본문" id="editor-textarea" class="editor-textarea" readonly placeholder="여기에 마크다운 문법으로 자유롭게 내용을 작성하세요... (이미지/파일 드래그 앤 드롭 지원)"></textarea>
+                <textarea aria-label="Markdown 또는 Typst 본문" id="editor-textarea" class="editor-textarea" readonly placeholder="여기에 마크다운 문법으로 자유롭게 내용을 작성하세요... (이미지/파일 드래그 앤 드롭 지원)"></textarea>
                 <div id="drag-overlay" class="drag-overlay">
                     📸 이미지를 놓으면 마스토돈으로 업로드됩니다
                 </div>
@@ -1065,8 +1065,8 @@
         <span id="toast-message">알림 메시지</span>
     </div>
 
-    <script type="module" src="./write.js?v=24"></script>
-    <script type="module" src="./pdf.js?v=21"></script>
-    <script type="module" src="./page-mode.js?v=21"></script>
+    <script type="module" src="./write.js?v=26"></script>
+    <script type="module" src="./pdf.js?v=26"></script>
+    <script type="module" src="./page-mode.js?v=26"></script>
 </body>
 </html>

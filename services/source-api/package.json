@@ -1,0 +1,1 @@
+{"name":"sulog-source-api","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server.mjs"}}

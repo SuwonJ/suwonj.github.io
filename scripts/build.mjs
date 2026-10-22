@@ -2,10 +2,15 @@ import { build } from 'esbuild';
 import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 await mkdir('assets/vendor', { recursive: true });
 const bundledPackages = new Set();
-for (const [entry, outfile] of [['write/editor.js','assets/editor.js'], ['components/preview.js','assets/preview.js'], ['components/preview-worker.js','assets/preview-worker.js']]) {
+for (const [entry, outfile] of [['write/editor.js','assets/editor.js'], ['components/preview.js','assets/preview.js'], ['components/preview-worker.js','assets/preview-worker.js'], ['components/typst-worker.js','assets/typst-worker.js']]) {
   const result = await build({ metafile: true, entryPoints: [entry], outfile, bundle: true, format: 'esm', minify: true, target: 'es2022', legalComments: 'external' });
-  for (const input of Object.keys(result.metafile.inputs)) { const dir = input.match(/^node_modules\/(?:@[^/]+\/)?[^/]+/)?.[0]; if (dir) bundledPackages.add(dir); }
+  for (const input of Object.keys(result.metafile.inputs)) { const match = /(?:^|\/)node_modules\/(?:@[^/]+\/)?[^/]+/.exec(input); if (match) bundledPackages.add(input.slice(0, match.index + match[0].length)); }
 }
+await mkdir('assets/vendor/typst', { recursive: true });
+for (const name of ['engine.core.wasm', 'engine.core2.wasm', 'engine.core3.wasm'])
+  await cp('node_modules/typst-wasm/dist/engine/' + name, 'assets/vendor/typst/' + name);
+await cp('node_modules/@typst-wasm/fonts/dist/files/NewCMMath-Regular.otf', 'assets/vendor/typst/NewCMMath-Regular.otf');
+await cp('node_modules/@typst-wasm/fonts', 'assets/vendor/typst/font-licenses', { recursive: true, filter: path => !path.includes('/dist') });
 let licenses = '';
 for (const dir of [...bundledPackages].sort()) {
   const pkg = JSON.parse(await readFile(dir + '/package.json', 'utf8'));
@@ -23,21 +28,23 @@ const shell = [
   
   "/write/",
   "/write/index.html",
-  "/write/write.js?v=24",
-  "/write/pdf.js?v=21",
-  "/write/page-mode.js?v=21",
-  "/admin/admin.js?v=23",
-  "/assets/studio-ui.css?v=24",
-  "/assets/editor.js?v=21",
-  "/assets/preview.js?v=25",
-  "/assets/preview-worker.js?v=25",
-  "/components/drafts.js?v=21",
-  "/components/editor-tools.js?v=21",
-  "/components/mastodon_document.js?v=21",
-  "/components/mastodon.js?v=21",
-  "/components/mastodon_oauth.js?v=22",
+  "/write/write.js?v=26",
+  "/write/pdf.js?v=26",
+  "/write/page-mode.js?v=26",
+  "/admin/admin.js?v=26",
+  "/assets/studio-ui.css?v=26",
+  "/assets/editor.js?v=26",
+  "/assets/preview.js?v=26",
+  "/assets/preview-worker.js?v=26",
+  "/components/drafts.js?v=26",
+  "/components/editor-tools.js?v=26",
+  "/components/mastodon_document.js?v=26",
+  "/components/mastodon.js?v=26",
+  "/components/mastodon_oauth.js?v=26",
   "/assets/vendor/katex.min.css",
   "/assets/vendor/highlight.min.css"
 ];
+shell.push('/components/source-api.js?v=26', '/components/document.js?v=26', '/components/source-thread.js?v=26', '/assets/typst-worker.js?v=26');
+for (const name of ['engine.core.wasm', 'engine.core2.wasm', 'engine.core3.wasm', 'NewCMMath-Regular.otf']) shell.push('/assets/vendor/typst/' + name);
 for (const font of await readdir('assets/vendor/fonts')) shell.push('/assets/vendor/fonts/' + font);
 await writeFile('write/precache.json', JSON.stringify(shell, null, 2) + '\n');

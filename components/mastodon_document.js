@@ -13,6 +13,8 @@ export function statusPlainText(status) {
 
 export function internalStatusKind(status) {
   const text = statusPlainText(status).trimStart();
+  const manifest = /\n\u2063SULOG-TEXT\/2 (\d+)\/\d+ \d+ [a-f0-9]{8}(?:\n\n#[^\r\n]*)?$/.exec(text);
+  if (status.in_reply_to_id == null && manifest?.[1] === '1') return null;
   if (text.startsWith(TEXT_MARKER)) return 'text';
   if (text.startsWith(MEDIA_MARKER)) return 'media';
   return null;
@@ -64,8 +66,9 @@ export async function fetchDocumentStructure(rootId, {
 
     let advanced = 0;
     while (true) {
-      const next = directChildren(descendants, parentId, accountId, 'text')
-        .find(status => !used.has(String(status.id)));
+      const candidates = directChildren(descendants, parentId, accountId, 'text').filter(status => !used.has(String(status.id)));
+      if (candidates.length > 1) throw new Error('문서 타래가 중복되었습니다.');
+      const next = candidates[0];
       if (!next) break;
       used.add(String(next.id));
       textStatuses.push(next);
