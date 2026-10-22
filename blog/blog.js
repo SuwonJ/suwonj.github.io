@@ -1,10 +1,10 @@
-import { renderBody } from '../assets/preview.js?v=26';
+import { renderBody } from '../assets/preview.js?v=27';
 const IS_PERSONAL = window.location.pathname.startsWith('/log/');
 const BLOG_ROUTE = IS_PERSONAL ? '/log/' : '/blog/';
 
 import { renderNavbar } from "/components/navbar.js";
 import { HalftoneBackground } from "../components/halftone.js";
-import { fetchPostById } from "../components/mastodon.js?v=26";
+import { fetchPostById } from "../components/mastodon.js?v=27";
 import { renderPostList } from "../components/post-list.js";
 import { sanitizeUntrustedHtml } from "../components/content-dependencies.js";
 import { initializePostInteractions } from "../components/post-interactions.js";

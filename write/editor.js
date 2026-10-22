@@ -27,7 +27,7 @@ function documentFormat(state) {
   return 'markdown';
 }
 const MODE_KEY = 'sulog_write_editor_mode';
-const VALID_MODES = new Set(['split', 'source', 'live', 'preview']);
+const VALID_MODES = new Set(['source', 'preview']);
 function injectStyles() {
   if (document.getElementById('sulog-codemirror-style')) return;
   const style = document.createElement('style');
@@ -196,7 +196,7 @@ export function installWriteEditor() {
   if (!textarea || !container || document.getElementById('cm-editor-host')) return null;
   const host = document.createElement('div'); host.id = 'cm-editor-host'; container.prepend(host);
   const live = new Compartment(), language = new Compartment();
-  let mode = localStorage.getItem(MODE_KEY) || 'split', snapshot, snapshotDoc;
+  let mode = localStorage.getItem(MODE_KEY) === 'preview' ? 'preview' : 'source', snapshot, snapshotDoc;
   let bookmarks = new Set();
   const notify = () => textarea.dispatchEvent(new Event('input', { bubbles: true }));
   const applyFormat = cmd => {
@@ -259,23 +259,22 @@ export function installWriteEditor() {
     set: value => window.sulogEditor.replaceDocument(String(value)) });
   injectStyles();
   const toolbar = document.querySelector('.toolbar');
-  const switcher = document.createElement('div'); switcher.className = 'write-mode-switch';
-  switcher.setAttribute('aria-label', '에디터 보기 모드');
-  for (const [value, label] of [['split', '분할'], ['source', '텍스트'], ['live', '라이브'], ['preview', '미리보기']]) {
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'write-mode-btn';
-    button.textContent = label; button.dataset.writeMode = value; switcher.append(button);
-  }
-  toolbar.prepend(switcher);
+  const previewButton = document.createElement('button');
+  previewButton.type = 'button'; previewButton.className = 'btn write-preview-button';
+  previewButton.dataset.writeMode = 'preview'; previewButton.textContent = '미리보기';
+  toolbar.append(previewButton);
   const setMode = requested => {
-    mode = VALID_MODES.has(requested) ? requested : 'split'; localStorage.setItem(MODE_KEY, mode);
+    mode = VALID_MODES.has(requested) ? requested : 'source'; localStorage.setItem(MODE_KEY, mode);
     document.body.classList.remove('write-mode-split', 'write-mode-source', 'write-mode-live', 'write-mode-preview'); document.body.classList.add(`write-mode-${mode}`);
-    for (const button of switcher.children) { button.classList.toggle('active', button.dataset.writeMode === mode); button.setAttribute('aria-pressed', button.dataset.writeMode === mode); }
     view.dispatch({ effects: live.reconfigure(mode === 'live' && documentFormat(view.state) === 'markdown' ? [mathField, livePlugin] : []) });
     document.getElementById('btn-preview-edit').hidden = mode !== 'preview';
     document.dispatchEvent(new CustomEvent('sulog:editor-mode-change', { detail: { mode } })); view.requestMeasure();
     if (mode !== 'preview') view.focus(); else document.getElementById('btn-preview-edit').focus();
   };
-  switcher.addEventListener('click', event => { const button = event.target.closest('[data-write-mode]'); if (button) setMode(button.dataset.writeMode); });
+  previewButton.addEventListener('click', () => setMode('preview'));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && mode === 'preview') { event.preventDefault(); setMode('source'); }
+  });
   document.getElementById('btn-preview-edit').addEventListener('click', () => setMode('source'));
   setMode(mode);
   document.fonts?.ready.then(() => view.requestMeasure());

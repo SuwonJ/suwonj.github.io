@@ -907,7 +907,7 @@
         #preview-markdown-content > * { content-visibility: auto; contain-intrinsic-size: auto 100px; }
         @media print { #preview-markdown-content > * { content-visibility: visible; } }
     </style>
-    <link rel="stylesheet" href="/assets/studio-ui.css?v=26">
+    <link rel="stylesheet" href="/assets/studio-ui.css?v=27">
 </head>
 <body class="write-minimal">
 
@@ -915,7 +915,7 @@
     <header class="app-header">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
             <button type="button" aria-controls="posts-sidebar" aria-label="글 목록 열기" id="btn-toggle-sidebar" class="btn" title="글 목록" style="padding: 0.35rem 0.6rem;">
-                <span id="icon-toggle-sidebar" class="material-symbols-outlined" style="font-size: 19px;">menu</span>
+                <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                 <span id="posts-count-badge" class="badge" style="display:none;">0</span>
             </button>
         </div>
@@ -986,10 +986,8 @@
                 </div>
             </div>
 
-            <div class="config-bar">
-                <div class="title-row">
-                    <input type="text" aria-label="본문에서 추출한 제목" id="input-title" class="input-title" disabled readonly placeholder="본문 첫 줄: # 제목 또는 = 제목">
-                </div>
+            <details class="config-bar" id="write-settings">
+                <summary>설정</summary>
                 <div class="metadata-row">
                     <div class="metadata-field metadata-category">
                         <span class="field-label" id="category-label">분류</span>
@@ -1006,32 +1004,13 @@
                         <input type="text" aria-label="주제 태그" id="input-tags" class="input-tags" disabled placeholder="쉼표로 구분 · ai, cpp, notes">
                     </div>
                 </div>
-            </div>
+            </details>
 
-            <!-- Formatting Toolbar -->
-            <div class="toolbar">
-                <button type="button" class="tool-btn" data-cmd="bold" title="굵게 (Ctrl+B)"><span class="material-symbols-outlined">format_bold</span></button>
-                <button type="button" class="tool-btn" data-cmd="italic" title="기울임 (Ctrl+I)"><span class="material-symbols-outlined">format_italic</span></button>
-                <button type="button" class="tool-btn" data-cmd="strike" title="취소선"><span class="material-symbols-outlined">strikethrough_s</span></button>
-                <button type="button" class="tool-btn" data-cmd="highlight" title="형광펜"><span class="material-symbols-outlined">ink_highlighter</span></button>
-
-                <div class="tool-divider"></div>
-
-                <button type="button" class="tool-btn" data-cmd="h1" title="제목 1">H1</button>
-                <button type="button" class="tool-btn" data-cmd="h2" title="제목 2">H2</button>
-                <button type="button" class="tool-btn" data-cmd="h3" title="제목 3">H3</button>
-
-                <div class="tool-divider"></div>
-
-                <button type="button" class="tool-btn" data-cmd="code" title="코드 블록"><span class="material-symbols-outlined">code</span></button>
-                <button type="button" class="tool-btn" data-cmd="quote" title="인용구"><span class="material-symbols-outlined">format_quote</span></button>
-                <button type="button" class="tool-btn" data-cmd="math" title="KaTeX 수식"><span class="material-symbols-outlined">functions</span></button>
-                <button type="button" class="tool-btn" data-cmd="link" title="링크"><span class="material-symbols-outlined">link</span></button>
-            </div>
+            <div class="toolbar"></div>
 
             <!-- Editor Textarea -->
             <div class="editor-container">
-                <textarea aria-label="Markdown 또는 Typst 본문" id="editor-textarea" class="editor-textarea" readonly placeholder="여기에 마크다운 문법으로 자유롭게 내용을 작성하세요... (이미지/파일 드래그 앤 드롭 지원)"></textarea>
+                <textarea aria-label="Markdown 또는 Typst 본문" id="editor-textarea" class="editor-textarea" readonly placeholder="# 제목 또는 = 제목부터 작성하세요"></textarea>
                 <div id="drag-overlay" class="drag-overlay">
                     📸 이미지를 놓으면 마스토돈으로 업로드됩니다
                 </div>
@@ -1041,12 +1020,12 @@
         <!-- 3. Preview Pane -->
         <div class="pane">
             <div class="preview-header">
-                <span>LIVE PREVIEW</span>
-                <button type="button" class="btn" id="btn-preview-edit" hidden>편집으로</button>
+                <span>미리보기</span>
+                <button type="button" class="btn" id="btn-preview-edit" hidden>작성으로</button>
                 <span id="preview-meta-info">0 단어 | 0 자</span>
             </div>
             <div id="preview-body" class="preview-body">
-                <h1 id="preview-title" style="color:var(--text-muted); font-weight:400;">제목 프리뷰...</h1>
+                <h1 id="preview-title" style="color:var(--text-muted); font-weight:400;"></h1>
                 <div id="preview-tags" style="margin-bottom: 1.5rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-blue);"></div>
                 <div id="preview-markdown-content"></div>
             </div>
@@ -1065,8 +1044,8 @@
         <span id="toast-message">알림 메시지</span>
     </div>
 
-    <script type="module" src="./write.js?v=26"></script>
-    <script type="module" src="./pdf.js?v=26"></script>
-    <script type="module" src="./page-mode.js?v=26"></script>
+    <script type="module" src="./write.js?v=27"></script>
+    <script type="module" src="./pdf.js?v=27"></script>
+    <script type="module" src="./page-mode.js?v=27"></script>
 </body>
 </html>

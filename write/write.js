@@ -1,8 +1,8 @@
-import { dbGet, dbSet } from '../components/drafts.js?v=26';
+import { dbGet, dbSet } from '../components/drafts.js?v=27';
 const ACCOUNT_KEY = 'mastodon-account';
 const VISIBILITY_KEY = 'sulog_write_visibility';
-const mode = localStorage.getItem('sulog_write_editor_mode') || 'split';
-document.body.classList.add(`write-mode-${['split','source','live','preview'].includes(mode) ? mode : 'split'}`);
+const mode = localStorage.getItem('sulog_write_editor_mode');
+document.body.classList.add(`write-mode-${mode === 'preview' ? 'preview' : 'source'}`);
 
 function installVisibilityControl() {
   const configBar = document.querySelector('.config-bar');
@@ -33,7 +33,15 @@ function installVisibilityControl() {
 }
 
 function simplifyWriteUi() {
-  document.querySelectorAll('.toolbar .tool-btn[data-cmd], .toolbar .tool-divider').forEach(element => element.remove());
+  document.querySelector('.toolbar').append(document.getElementById('write-settings'));
+
+  const settings = document.getElementById('write-settings');
+  document.addEventListener('pointerdown', event => {
+    if (!settings.contains(event.target)) settings.open = false;
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && settings.open) { settings.open = false; settings.querySelector('summary').focus(); }
+  });
 
   const categoryButtons = document.querySelector('.cat-selector');
   if (categoryButtons && !document.getElementById('write-category')) {
@@ -128,7 +136,7 @@ installFetchLayer();
 installVisibilityControl();
 simplifyWriteUi();
 localStorage.setItem('sulog_admin_sidebar_open', 'false');
-const { adminReady } = await import('../admin/admin.js?v=26');
+const { adminReady } = await import('../admin/admin.js?v=27');
 await adminReady;
 updateConnectionState();
 window.addEventListener('online', updateConnectionState);

@@ -1,7 +1,7 @@
-import { assertSourceReady, fetchSourceDocument, fetchSourceText } from './source-api.js?v=26';
-import { splitSourceThread, isReadableSource, joinSourceThread, readSourceChunk, decodeSourceThread, statusPlainText as rawStatusText } from './source-thread.js?v=26';
-import { stripMetadataTags } from './editor-tools.js?v=26';
-import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, internalStatusKind, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=26';
+import { assertSourceReady, fetchSourceDocument, fetchSourceText } from './source-api.js?v=27';
+import { splitSourceThread, isReadableSource, joinSourceThread, readSourceChunk, decodeSourceThread, statusPlainText as rawStatusText } from './source-thread.js?v=27';
+import { stripMetadataTags } from './editor-tools.js?v=27';
+import { TEXT_MARKER as THREAD_MARKER, MEDIA_MARKER, statusPlainText, removeInternalMarker, internalStatusKind, fetchDocumentStructure, mediaDescriptors } from './mastodon_document.js?v=27';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 

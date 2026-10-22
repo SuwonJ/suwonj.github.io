@@ -26,14 +26,14 @@ test('precache versions match the writing app entrypoints', async () => {
   const admin = await readFile(resolve(root, 'admin/admin.js'), 'utf8');
   const preview = await readFile(resolve(root, 'components/preview.js'), 'utf8');
   const dependencies = [
-    ['/write/write.js?v=26', html.includes('src="./write.js?v=26"')],
-    ['/write/pdf.js?v=26', html.includes('src="./pdf.js?v=26"')],
-    ['/write/page-mode.js?v=26', html.includes('src="./page-mode.js?v=26"')],
-    ['/assets/studio-ui.css?v=26', html.includes('/assets/studio-ui.css?v=26')],
-    ['/admin/admin.js?v=26', write.includes('../admin/admin.js?v=26')],
-    ['/assets/editor.js?v=26', admin.includes('../assets/editor.js?v=26')],
-    ['/assets/preview.js?v=26', admin.includes('../assets/preview.js?v=26')],
-    ['/assets/preview-worker.js?v=26', preview.includes('/assets/preview-worker.js?v=26')]
+    ['/write/write.js?v=27', html.includes('src="./write.js?v=27"')],
+    ['/write/pdf.js?v=27', html.includes('src="./pdf.js?v=27"')],
+    ['/write/page-mode.js?v=27', html.includes('src="./page-mode.js?v=27"')],
+    ['/assets/studio-ui.css?v=27', html.includes('/assets/studio-ui.css?v=27')],
+    ['/admin/admin.js?v=27', write.includes('../admin/admin.js?v=27')],
+    ['/assets/editor.js?v=27', admin.includes('../assets/editor.js?v=27')],
+    ['/assets/preview.js?v=27', admin.includes('../assets/preview.js?v=27')],
+    ['/assets/preview-worker.js?v=27', preview.includes('/assets/preview-worker.js?v=27')]
   ];
   for (const [url, inSource] of dependencies) {
     assert.ok(inSource, `Update the expected app reference: ${url}`);

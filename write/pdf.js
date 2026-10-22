@@ -1,14 +1,14 @@
 function installPdfExport() {
-  const toolbar = document.querySelector('.toolbar');
+  const toolbar = document.getElementById('write-settings');
   if (!toolbar || document.getElementById('btn-export-pdf')) return false;
 
   const button = document.createElement('button');
   button.type = 'button';
   button.id = 'btn-export-pdf';
-  button.className = 'tool-btn';
+  button.className = 'btn';
   button.title = '렌더된 문서를 인쇄하거나 PDF로 저장';
   button.setAttribute('aria-label', 'PDF');
-  button.innerHTML = '<span class="material-symbols-outlined">picture_as_pdf</span>';
+  button.textContent = 'PDF 저장';
   toolbar.appendChild(button);
 
   if (!document.getElementById('write-print-style')) {
@@ -102,6 +102,7 @@ function installPdfExport() {
   }
 
   button.addEventListener('click', async () => {
+    toolbar.open = false;
     button.disabled = true;
     let cleanup = () => {};
     try {
@@ -131,7 +132,7 @@ function installPdfExport() {
       }
 
       const oldTitle = document.title;
-      const title = document.getElementById('input-title')?.value.trim();
+      const title = document.getElementById('preview-title')?.textContent.trim();
       if (title) document.title = title;
 
       let cleaned = false;

@@ -1,7 +1,7 @@
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import { renderMarkdownBlocks } from './markdown-engine.js';
-import { inspectDocument } from './document.js?v=26';
+import { inspectDocument } from './document.js?v=27';
 import { renderTypst } from './typst.js';
 let worker, workerUnavailable = false, sequence = 0, pending = new Map();
 export async function parsePreview(source) {
@@ -14,7 +14,7 @@ export async function parsePreview(source) {
   }
   if (!window.Worker || workerUnavailable) return Promise.resolve(renderMarkdownBlocks(text));
   if (!worker) {
-    try { worker = new Worker('/assets/preview-worker.js?v=26', { type: 'module' }); }
+    try { worker = new Worker('/assets/preview-worker.js?v=27', { type: 'module' }); }
     catch { workerUnavailable = true; return Promise.resolve(renderMarkdownBlocks(text)); }
     worker.onmessage = ({ data }) => {
       const request = pending.get(data.id); if (!request) return;

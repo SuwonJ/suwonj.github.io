@@ -1,4 +1,4 @@
-import { inspectDocument } from '../components/document.js?v=26';
+import { inspectDocument } from '../components/document.js?v=27';
 import {
   initiateOAuth,
   handleOAuthCallback,
@@ -12,15 +12,15 @@ import {
   fetchMyStatuses,
   fetchEditableStatus,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js?v=26";
+} from "../components/mastodon_oauth.js?v=27";
 
-import { parseMastodonStatus } from "../components/mastodon.js?v=26";
-import { parsePreview, commitPreview } from '../assets/preview.js?v=26';
-import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=26';
-import { formatText } from '../components/editor-tools.js?v=26';
+import { parseMastodonStatus } from "../components/mastodon.js?v=27";
+import { parsePreview, commitPreview } from '../assets/preview.js?v=27';
+import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=27';
+import { formatText } from '../components/editor-tools.js?v=27';
 
-const initialMode = localStorage.getItem('sulog_write_editor_mode') || 'split';
-document.body.classList.add(`write-mode-${['split', 'source', 'live', 'preview'].includes(initialMode) ? initialMode : 'split'}`);
+const initialMode = localStorage.getItem('sulog_write_editor_mode');
+document.body.classList.add(`write-mode-${initialMode === 'preview' ? 'preview' : 'source'}`);
 let selectedCategory = "blog"; // "blog" | "research" | "tmp"
 let documentMedia = [];
 let autoSaveTimer = null;
@@ -78,7 +78,7 @@ async function initAdminStudio() {
   window.addEventListener('pagehide', () => { saveDraft(); });
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   try {
-    const { installWriteEditor } = await import('../assets/editor.js?v=26');
+    const { installWriteEditor } = await import('../assets/editor.js?v=27');
     installWriteEditor();
   } catch (error) {
     console.error('Editor initialization failed:', error);
@@ -93,8 +93,6 @@ async function initAdminStudio() {
     updatePreview();
   }
 
-  document.getElementById('input-title').disabled = false;
-  document.getElementById('input-title').readOnly = true;
   document.getElementById('input-tags').disabled = false;
   document.getElementById('editor-textarea').readOnly = false;
 
@@ -233,9 +231,9 @@ function applyFormat(textarea, cmd) {
 }
 
 function setupEditorAndPreview() {
-  const title = document.getElementById('input-title'), tags = document.getElementById('input-tags');
+  const tags = document.getElementById('input-tags');
   const textarea = document.getElementById('editor-textarea');
-  for (const input of [title, tags]) input.addEventListener('input', () => { changed(); updatePreviewMeta(); triggerPreviewUpdate(); triggerAutoSave(); });
+  tags.addEventListener('input', () => { changed(); updatePreviewMeta(); triggerPreviewUpdate(); triggerAutoSave(); });
   textarea.addEventListener('input', () => { changed(); triggerPreviewUpdate(); triggerAutoSave(); });
   textarea.addEventListener('compositionstart', () => { composing = true; clearTimeout(previewDebounceTimer); });
   textarea.addEventListener('compositionend', () => { composing = false; triggerPreviewUpdate(); });
@@ -244,10 +242,11 @@ function setupEditorAndPreview() {
   updatePreview();
 }
 function updatePreviewMeta() {
-  const title = inspectDocument(bodyValue()).title;
-  document.getElementById('input-title').value = title;
+  const info = inspectDocument(bodyValue());
+  const title = info.title;
   const titleEl = document.getElementById('preview-title');
-  titleEl.textContent = title || '제목 프리뷰...'; titleEl.style.color = title ? 'var(--text-main)' : 'var(--text-muted)';
+  titleEl.hidden = info.format !== 'typst' || !title;
+  titleEl.textContent = title; titleEl.style.color = title ? 'var(--text-main)' : 'var(--text-muted)';
   const tags = document.getElementById('input-tags').value.split(',').map(t => t.trim()).filter(Boolean);
   document.getElementById('preview-tags').textContent = [selectedCategory, ...tags].map(t => '#' + t.replace(/^#/, '')).join(' / ');
 }
@@ -482,7 +481,6 @@ function setupPublishing() {
 function setupSidebar() {
   const sidebar = document.getElementById("posts-sidebar");
   const btnToggle = document.getElementById("btn-toggle-sidebar");
-  const iconToggle = document.getElementById("icon-toggle-sidebar");
   const btnRefresh = document.getElementById("btn-refresh-posts");
   const searchInput = document.getElementById("posts-search");
   const filterTabs = document.querySelectorAll(".filter-tab");
@@ -494,12 +492,12 @@ function setupSidebar() {
   const syncSidebar = () => {
     const opened = !sidebar.classList.contains('collapsed');
     btnToggle?.setAttribute('aria-expanded', String(opened));
+    btnToggle?.setAttribute('aria-label', opened ? '글 목록 닫기' : '글 목록 열기');
     scrim?.classList.toggle('visible', opened && isMobile());
   };
   const closeSidebar = () => {
     if (!isMobile()) return;
     sidebar.classList.add('collapsed');
-    if (iconToggle) iconToggle.innerText = 'menu';
     localStorage.setItem('sulog_admin_sidebar_open', 'false');
   };
   scrim?.addEventListener('click', closeSidebar);
@@ -513,16 +511,12 @@ function setupSidebar() {
   const savedState = localStorage.getItem("sulog_admin_sidebar_open");
   if (savedState === "false" || (savedState == null && matchMedia("(max-width: 1000px)").matches)) {
     sidebar.classList.add("collapsed");
-    if (iconToggle) iconToggle.innerText = "menu";
   }
 
   // 토글 버튼
   if (btnToggle) {
     btnToggle.addEventListener("click", () => {
       const isCollapsed = sidebar.classList.toggle("collapsed");
-      if (iconToggle) {
-        iconToggle.innerText = isCollapsed ? "menu" : "menu_open";
-      }
       localStorage.setItem("sulog_admin_sidebar_open", isCollapsed ? "false" : "true");
     });
   }
@@ -739,7 +733,6 @@ async function startEditingPost(post) {
   currentEditingPost = post;
 
   // 제목, 본문, 태그 채우기
-  document.getElementById("input-title").value = post.title || "";
   const source = post.source ?? post.markdown ?? '';
   replaceBody(post.rawStatus?.spoiler_text && !inspectDocument(source).hasTitleHeading ? `# ${post.title}\n\n${source}` : source);
   document.getElementById("input-tags").value = (post.tags || []).join(", ");
@@ -775,7 +768,7 @@ async function startEditingPost(post) {
   updatePublishButtonState();
 
   if (draft) applyDraft(draft);
-  if (matchMedia('(max-width: 1000px)').matches) { document.getElementById('posts-sidebar').classList.add('collapsed'); document.getElementById('icon-toggle-sidebar').textContent = 'menu'; }
+  if (matchMedia('(max-width: 1000px)').matches) { document.getElementById('posts-sidebar').classList.add('collapsed'); }
   dirty = Boolean(draft);
   await dbSet('active-draft', post.id).catch(() => {});
   // 프리뷰 갱신
@@ -809,7 +802,6 @@ async function startNewPost({ skipSave = false } = {}) {
   if (btnNewPost) btnNewPost.style.display = "none";
 
   // 폼 비우기
-  document.getElementById("input-title").value = "";
   replaceBody("");
   document.getElementById("input-tags").value = "";
   
@@ -912,7 +904,6 @@ async function saveDraft() {
 }
 async function flushBeforeSwitch() { while (dirty) { if (!(await saveDraft())) return false; } return true; }
 function applyDraft(draft) {
-  document.getElementById('input-title').value = draft.title || '';
   document.getElementById('input-tags').value = draft.tags || '';
   replaceBody(!draft.documentVersion && draft.title && !/^\s*(?:#|=)\s+/.test(draft.markdown || '') ? `# ${draft.title}\n\n${draft.markdown || ''}` : draft.markdown || '');
   documentMedia = draft.media || (draft.mediaIds || []).map(id => ({ id: String(id), type: 'image' }));
@@ -941,7 +932,6 @@ async function clearDraft(expectedSession = documentSession, expectedRevision = 
   clearTimeout(autoSaveTimer); await saveChain.catch(() => {}); await removeDraft(currentEditingPost?.id);
   if (expectedSession !== documentSession || expectedRevision !== revision) return false;
   dirty = false; documentSession++;
-  document.getElementById('input-title').value = '';
   document.getElementById('input-tags').value = ''; replaceBody(''); documentMedia = [];
   updatePublishButtonState(); updatePreview();
   document.getElementById('status-draft').textContent = '자동 저장 준비됨';

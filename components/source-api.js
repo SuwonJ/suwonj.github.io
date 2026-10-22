@@ -1,4 +1,4 @@
-import { joinSourceThread, isReadableSource, decodeSourceThread, readSourceChunk } from './source-thread.js?v=26';
+import { joinSourceThread, isReadableSource, decodeSourceThread, readSourceChunk } from './source-thread.js?v=27';
 const SOURCE_API = 'https://source.suwonmars.com';
 async function request(path) {
   try {

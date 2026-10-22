@@ -1,8 +1,8 @@
-import { fetchSourceDocument } from './source-api.js?v=26';
-import { inspectDocument } from './document.js?v=26';
-import { readSourceChunk, decodeSourceThread, statusPlainText as rawStatusText, isReadableSource, readableExcerpt, readableMetadataTags } from './source-thread.js?v=26';
-import { stripMetadataTags } from './editor-tools.js?v=26';
-import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=26';
+import { fetchSourceDocument } from './source-api.js?v=27';
+import { inspectDocument } from './document.js?v=27';
+import { readSourceChunk, decodeSourceThread, statusPlainText as rawStatusText, isReadableSource, readableExcerpt, readableMetadataTags } from './source-thread.js?v=27';
+import { stripMetadataTags } from './editor-tools.js?v=27';
+import { fetchDocumentStructure, internalStatusKind, removeInternalMarker } from './mastodon_document.js?v=27';
 
 const INSTANCE_URL = "https://maximux.suwonmars.com";
 const ACCOUNT_ID = "116979319977947616";

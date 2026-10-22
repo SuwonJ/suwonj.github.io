@@ -4,7 +4,7 @@ let queue = Promise.resolve();
 export function renderTypst(source) {
   const task = queue.catch(() => {}).then(() => new Promise((resolve, reject) => {
     if (!worker) {
-      worker = new Worker('/assets/typst-worker.js?v=26', { type: 'module' });
+      worker = new Worker('/assets/typst-worker.js?v=27', { type: 'module' });
       worker.onmessage = ({ data }) => {
         if (data.id !== pending?.id) return;
         clearTimeout(pending.timer);

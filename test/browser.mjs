@@ -76,11 +76,27 @@ try {
   assert.equal(await page.locator('#btn-toggle-sidebar .btn-text').count(), 0);
   assert.equal(await page.locator('#write-category').count(), 1);
   assert.equal(await page.locator('#posts-sidebar.collapsed').count(), 1);
+  assert.equal(await page.locator('#input-title').count(), 0);
+  assert.equal(await page.locator('[data-write-mode]').count(), 1);
+  assert.equal(await page.locator('#write-category').isVisible(), false);
+  const showSource = async () => {
+    if (await page.locator('#btn-preview-edit').isVisible()) await page.locator('#btn-preview-edit').click();
+  };
+  const showPreview = async () => {
+    if (!(await page.locator('#btn-preview-edit').isVisible())) await page.locator('[data-write-mode=preview]').click();
+  };
+  const openSettings = async () => {
+    await showSource();
+    if (!(await page.locator('#write-settings').evaluate(el => el.open))) await page.locator('#write-settings > summary').click();
+  };
+  await openSettings();
   await page.locator('#write-category').selectOption('research');
   assert.equal(await page.locator('.cat-opt.active').getAttribute('data-cat'), 'research');
   await page.locator('#write-category').selectOption('blog');
   assert.equal(await page.locator('.cat-opt.active').getAttribute('data-cat'), 'blog');
-  results.push('minimal write chrome and category selection');
+  await page.locator('#write-settings > summary').click();
+  await page.screenshot({ path: '/tmp/sulog-write-minimal-desktop.png' });
+  results.push('single preview button, no title field, collapsed settings and category selection');
   assert.equal(await page.locator('.cm-editor').count(), 1);
   const setDocument = async text => page.evaluate(text => {
     window.sulogEditor.replaceDocument(text);
@@ -94,28 +110,7 @@ try {
   assert.equal(await page.evaluate(() => window.sulogEditor.value), '입력 테스트');
   results.push('write editor input/undo');
 
-  const mixed = '# 제목\n\n**강조**와 $x^2$\n\n$$\na+b\n$$\n\n```python\n' + 'x = 1\n'.repeat(600) + '#comment\n> source\n$$not_math$$\n```\n\n끝';
-  await setDocument(mixed);
-  await page.evaluate(() => window.sulogWriteEditor.dispatch({ selection:{anchor:window.sulogEditor.length} }));
-  await page.locator('[data-write-mode=live]').click();
-  await page.waitForTimeout(300);
-  await page.evaluate(() => window.sulogWriteEditor.dispatch({ selection:{anchor:0}, scrollIntoView:true }));
-  await page.waitForTimeout(100);
-  assert.ok(await page.locator('.cm-live-math-block').count());
-  await page.locator('.cm-live-math-block').click();
-  await page.waitForTimeout(100);
-  assert.equal(await page.locator('.cm-live-math-block').count(), 0);
-  assert.ok(await page.locator('.cm-content').innerText().then(text => text.includes('a+b')));
-  await page.evaluate(() => {
-    const view = window.sulogWriteEditor, pos = window.sulogEditor.value.indexOf('#comment');
-    view.dispatch({ selection:{anchor:pos}, scrollIntoView:true });
-  });
-  await page.waitForTimeout(100);
-  assert.ok((await page.locator('.cm-content').innerText()).includes('#comment'));
-  assert.equal(await page.locator('.cm-live-h1').count(), 0);
-  results.push('live block math edit and long fence context');
-
-  await page.locator('[data-write-mode=source]').click();
+  await showSource();
   await setDocument('abc def');
   await page.evaluate(() => { window.sulogWriteEditor.dispatch({ selection:{anchor:7,head:4} }); window.sulogWriteEditor.focus(); });
   await page.keyboard.press('Control+b');
@@ -133,16 +128,19 @@ try {
   assert.equal(await page.evaluate(() => window.sulogWriteEditor.state.selection.main.head),3);
   results.push('cursor coordinate round trip');
 
-  await page.locator('[data-write-mode=split]').click();
+  await showPreview();
   await setDocument('본문 <img src=x onerror="window.attacked=1">\n\n$$\na+b\n$$');
   await page.evaluate(() => window.sulogRenderPreview());
   assert.ok(await page.locator('#preview-markdown-content .katex').count());
   assert.equal(await page.locator('#preview-markdown-content [onerror]').count(),0);
   await page.evaluate(() => window.preserved = document.querySelector('#preview-markdown-content').firstChild);
+  await openSettings();
   await page.locator('#input-tags').fill('metadata');
+  await showPreview();
+  await page.evaluate(() => window.sulogRenderPreview());
   await page.waitForTimeout(400);
-  assert.ok(await page.evaluate(() => window.preserved === document.querySelector('#preview-markdown-content').firstChild));
-  results.push('worker preview, sanitization, metadata does not replace body');
+  assert.ok(await page.locator('#preview-markdown-content .katex').count());
+  results.push('worker preview, sanitization and metadata settings');
 
   const tick = String.fromCharCode(96);
   const iaExcerpt = [
@@ -169,12 +167,12 @@ try {
 
 
 
-  await page.locator('[data-write-mode=live]').click();
+  await showSource();
   assert.equal(await page.locator('#preview-markdown-content').evaluate(root => root.childNodes.length), 0);
-  await page.locator('[data-write-mode=split]').click();
+  await showPreview();
   await page.evaluate(() => window.sulogRenderPreview());
   assert.ok(await page.locator('#preview-markdown-content .katex').count());
-  results.push('hidden live preview skips offscreen DOM work and restores on return');
+  results.push('writing skips offscreen preview work and restores on return');
 
   await setDocument('= Typst 도입기\n\n본문입니다.\n\n== 첫 번째 소제목\n\n$ sum_(i=1)^n i $');
   await page.evaluate(() => window.sulogRenderPreview());
@@ -184,7 +182,7 @@ try {
   assert.ok(await page.locator('#preview-markdown-content math, #preview-markdown-content svg').count());
   assert.ok((await page.locator('#preview-markdown-content').textContent()).includes('본문입니다.'));
   const same = await page.evaluate(async () => {
-    const { renderBody } = await import('/assets/preview.js?v=26');
+    const { renderBody } = await import('/assets/preview.js?v=27');
     const root = document.createElement('div'); document.body.append(root);
     await renderBody(root, window.sulogEditor.value);
     const equal = root.innerHTML === document.getElementById('preview-markdown-content').innerHTML;
@@ -192,7 +190,7 @@ try {
   });
   assert.ok(same);
   await page.evaluate(async () => {
-    const { renderBody } = await import('/assets/preview.js?v=26');
+    const { renderBody } = await import('/assets/preview.js?v=27');
     const root = document.createElement('div'); document.body.append(root);
     try {
       await renderBody(root, '= 안전 검증\n\n#html.elem("span", attrs: (onclick: "window.attacked=1", style: "position:fixed"), [안전])');
@@ -202,15 +200,11 @@ try {
       if (!rejected) throw new Error('Invalid Typst must fail explicitly');
     } finally { root.remove(); }
   });
-  await page.locator('[data-write-mode=live]').click();
+  await showSource();
   assert.equal(await page.locator('.cm-live-math-inline, .cm-live-math-block').count(), 0);
-  assert.ok(await page.locator('.cm-content .tok-keyword, .cm-content .ͼb').count() || await page.locator('.cm-content span').count());
-  await page.evaluate(() => window.sulogWriteEditor.dispatch({ changes: { from: 0, to: 1, insert: '#' } }));
-  await page.waitForFunction(() => document.querySelector('.cm-live-math-inline, .cm-live-math-block'));
-  await page.evaluate(() => window.sulogWriteEditor.dispatch({ changes: { from: 0, to: 1, insert: '=' } }));
-  await page.waitForFunction(() => !document.querySelector('.cm-live-math-inline, .cm-live-math-block'));
-  results.push('real Typst HTML, Korean prose, heading, math, shared body renderer, no Markdown math decorations');
-  await page.locator('[data-write-mode=split]').click();
+  assert.ok(await page.locator('.cm-content span').count());
+  results.push('real Typst HTML, Korean prose, heading, math, shared renderer and syntax highlighting');
+  await showPreview();
   const protocol = await page.evaluate(async () => {
     const { postStatus, updateStatus, fetchEditableStatus, deleteStatus } = await import('/components/mastodon_oauth.js?protocol-test=1');
     const { fetchPostById, fetchPostComments, parseMastodonStatus } = await import('/components/mastodon.js');
@@ -371,8 +365,8 @@ try {
   assert.ok(await published.locator('#lightbox').evaluate(el => el.classList.contains('active')));
   await published.close();
   results.push('published blog/research Typst HTML and existing Markdown math/code/table/image interactions');
-  await page.locator('[data-write-mode=source]').click();
-  await setDocument('복원할 초안'); assert.equal(await page.locator('#input-title').getAttribute('readonly'), '');
+  await showSource();
+  await setDocument('복원할 초안'); assert.equal(await page.locator('#input-title').count(), 0);
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+s');
   await page.waitForFunction(() => document.getElementById('status-draft').textContent.includes('로컬 저장됨'));
   await page.reload(); await page.waitForFunction(() => window.sulogEditor);
@@ -453,6 +447,7 @@ try {
   await page.waitForTimeout(100);
   const box = await page.locator('.cm-scroller').boundingBox();
   assert.ok(box.height > 100 && box.y+box.height <= 740);
+  await page.screenshot({ path: '/tmp/sulog-write-minimal-mobile.png' });
   results.push('mobile scroller fits viewport');
   await page.locator('[data-write-mode=preview]').click();
   await page.waitForFunction(() => document.body.classList.contains('write-mode-preview'));
@@ -476,22 +471,7 @@ try {
   });
   results.push({sourceInput:timings});
   assert.ok(timings.p95 < 100, `source input p95 ${timings.p95}`);
-  await page.locator('[data-write-mode=live]').click();
-  await page.waitForTimeout(500);
-  const liveTimings = await page.evaluate(async () => {
-    const v=window.sulogWriteEditor,samples=[];
-    for(let i=0;i<20;i++) {const t=performance.now();v.dispatch({selection:{anchor:v.state.doc.length-i}});await new Promise(r=>requestAnimationFrame(r));samples.push(performance.now()-t);}
-    samples.sort((a,b)=>a-b);return {p95:samples[Math.floor(samples.length*.95)]};
-  });
-  results.push({liveSelection:liveTimings});
-  const liveInput = await page.evaluate(async () => {
-    const v=window.sulogWriteEditor,samples=[];
-    for(let i=0;i<20;i++) { const t=performance.now(); v.dispatch({changes:{from:v.state.doc.length,insert:'나'},selection:{anchor:v.state.doc.length+1}}); await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); samples.push(performance.now()-t); }
-    samples.sort((a,b)=>a-b);return {p95:samples[Math.floor(samples.length*.95)]};
-  });
-  assert.ok(liveInput.p95 < 100, `live input p95 ${liveInput.p95}`);
-  results.push({liveInput});
-  await page.locator('[data-write-mode=split]').click();
+  await showPreview();
   await page.evaluate(() => window.sulogRenderPreview());
   assert.ok(await page.locator('#preview-markdown-content .katex').count());
   results.push('large mixed document preview completes');
@@ -499,7 +479,7 @@ try {
   assert.equal(await page.locator('.cm-editor').count(),1);
   assert.equal(await page.locator('#btn-export-pdf').count(),1);
   results.push('write editor initialization');
-  await page.locator('[data-write-mode=source]').click();
+  await showSource();
   await setDocument('한국어');
   await page.locator('.cm-content').click();
   await page.evaluate(() => {
@@ -512,6 +492,7 @@ try {
   assert.equal(await page.evaluate(() => window.sulogEditor.value),'한국어 조합');
   results.push('synthetic composition preserves text');
   await page.evaluate(() => { window.print = () => window.dispatchEvent(new Event('afterprint')); });
+  await openSettings();
   await page.locator('#btn-export-pdf').click();
   await page.waitForFunction(() => !document.getElementById('btn-export-pdf').disabled);
   assert.equal(await page.locator('#write-print-root').count(),0);
@@ -533,7 +514,8 @@ try {
   await offlinePage.waitForFunction(() => document.getElementById('status-draft').textContent.includes('로컬 저장됨'));
   results.push('offline app shell/editor/draft save works without CDN');
   await offlineContext.close();
-  await page.locator('[data-write-mode=source]').click();
+  await showSource();
+  await page.locator('#write-settings').evaluate(el => el.open = false);
   await setDocument('좌표 확대 검증');
   await page.evaluate(() => { document.getElementById('cm-editor-host').style.zoom = '1.25'; window.sulogWriteEditor.requestMeasure(); });
   await page.waitForTimeout(100);

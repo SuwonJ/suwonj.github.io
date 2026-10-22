@@ -516,3 +516,16 @@ body.write-minimal #cm-editor-host .cm-editor { width: 100%; min-width: 0; }
   body.write-minimal .config-bar { padding: 10px 12px 8px; gap: 6px; }
   body.write-minimal .app-header { height: 44px; }
 }
+
+/* The editor has one writing view and one rendered preview. */
+body.write-minimal .toolbar { overflow: visible; justify-content: space-between; }
+body.write-minimal details.config-bar { position: relative; padding: 0; border: 0; background: transparent; }
+body.write-minimal #write-settings > summary { cursor: pointer; color: var(--text-muted); font-size: .8rem; padding: 6px 0; list-style: none; }
+body.write-minimal #write-settings > summary::-webkit-details-marker { display: none; }
+body.write-minimal #write-settings[open] { position: absolute; z-index: 20; left: 15px; top: 0; width: min(400px, calc(100% - 30px)); padding: 8px 14px 14px; background: var(--bg-panel, #181818); border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 8px 24px #0005; }
+body.write-minimal .toolbar { position: relative; }
+body.write-minimal #write-settings[open] .metadata-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 12px; }
+body.write-minimal #write-settings .metadata-tags { flex: 1 0 100%; }
+body.write-minimal #write-settings .field-label { position: static; width: auto; height: auto; clip: auto; clip-path: none; white-space: normal; margin: 0 0 4px; }
+body.write-minimal .write-preview-button { margin-left: auto; }
+body.write-minimal #preview-title[hidden] { display: none; }
