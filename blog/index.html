@@ -4,6 +4,16 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>블로그</title>
+        <script>
+            (() => {
+                let theme = "dark";
+                try { theme = localStorage.getItem("theme") || "dark"; } catch {}
+                document.documentElement.classList.toggle("light-mode", theme === "light");
+                if (new URLSearchParams(location.search).get("id")) {
+                    document.documentElement.classList.add("blog-article");
+                }
+            })();
+        </script>
         <link rel="preconnect" href="https://maximux.suwonmars.com" crossorigin />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,15 +23,7 @@
             href="/assets/suwonjiconwhite.svg"
             type="image/x-icon"
         />
-        <link rel="stylesheet" href="../css/global.css" />
-        <script>
-            (function() {
-                const savedTheme = localStorage.getItem("theme") || "dark";
-                if (savedTheme === "light") {
-                    document.documentElement.classList.add("light-mode");
-                }
-            })();
-        </script>
+        <link rel="stylesheet" href="../css/global.css?v=20261023-7" />
         <style>
             /* 캔버스 고정 */
             #halftone-canvas {
@@ -47,9 +49,41 @@
                 text-decoration-color: currentColor;
             }
         </style>
+        <script type="module" src="/components/navbar.js"></script>
     </head>
     <body class="reading-layout">
+        <nav class="navbar">
+            <a href="/" class="nav-logo"><img src="/assets/suwonjicon.svg" alt="SuwonJ" class="suwonj-nav-icon" width="35" height="30" /></a>
+            <div id="nav-breadcrumb" class="nav-breadcrumb"></div>
+            <div class="nav-links">
+                <a href="/profile/">소개</a><a href="/blog/">블로그</a><a href="/research/">연구/실험</a>
+                <button id="theme-toggle" type="button" class="theme-toggle-btn" aria-label="라이트 모드로 전환">
+                    <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z" /></svg>
+                    <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+                </button>
+            </div>
+        </nav>
         <canvas id="halftone-canvas"></canvas>
+        <script>
+            (() => {
+                const canvas = document.getElementById("halftone-canvas");
+                const ctx = canvas.getContext("2d");
+                const w = document.documentElement.clientWidth, h = innerHeight;
+                const dpr = devicePixelRatio || 1;
+                canvas.width = w * dpr; canvas.height = h * dpr;
+                canvas.style.width = w + "px"; canvas.style.height = h + "px";
+                ctx.scale(dpr, dpr);
+                const t = 0;
+                const color = document.documentElement.classList.contains("light-mode") ? "0,0,0" : "255,255,255";
+                for (let x = 17.5; x < w; x += 35) for (let y = 0; y < h; y += 35) {
+                    const wave = Math.abs((Math.sin(x * .003 + t * .4) + Math.cos(y * .004 - t * .3) + Math.sin((x + y) * .002 + t * .5)) / 3);
+                    ctx.beginPath(); ctx.arc(x, y, 1 + wave * 1.4, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${color},${.08 + wave * .25})`; ctx.fill();
+                }
+                const button = document.getElementById("theme-toggle");
+                button.setAttribute("aria-label", document.documentElement.classList.contains("light-mode") ? "다크 모드로 전환" : "라이트 모드로 전환");
+            })();
+        </script>
 
         <main
             style="

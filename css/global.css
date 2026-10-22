@@ -18,7 +18,6 @@
     --text-secondary: #a0a0a0;
     --text-muted: #8a8a8a;
     --decorative-color: #555555;
-    --reading-veil: rgba(18, 18, 18, 0.92);
     --navbar-bg: #12121200;
     --logo-filter: invert(100%);
     --nav-text: var(--text-secondary);
@@ -81,7 +80,6 @@
     --text-secondary: #555555;
     --text-muted: #666666;
     --decorative-color: #cccccc;
-    --reading-veil: rgba(255, 255, 255, 0.94);
     --navbar-bg: #ffffff00;
     --logo-filter: none;
     --nav-text: var(--text-secondary);
@@ -139,14 +137,12 @@
 }
 
 body {
-    background-color: var(--bg-color);
+    /* The root paints the background; keep the negative-z canvas visible. */
+    background-color: transparent;
     color: var(--text-color);
     font-family: "NoonnuBasicGothic", sans-serif;
     font-size: 17px;
     line-height: 1.75;
-    transition:
-        background-color 1.5s ease,
-        color 1.5s ease;
 }
 
 .navbar {
@@ -165,11 +161,15 @@ body {
 
 main {
     padding-top: 120px !important;
+}
+
+/* Only fade scrolled reading content under the fixed header. */
+.reading-layout main {
     -webkit-mask-image: linear-gradient(
         to bottom,
         transparent var(--scroll-y, 0px),
-        transparent calc(var(--scroll-y, 0px) + 80px),
-        black calc(var(--scroll-y, 0px) + var(--mask-fade-end, 180px)),
+        transparent calc(var(--scroll-y, 0px) + 64px),
+        black calc(var(--scroll-y, 0px) + min(var(--mask-fade-end, 96px), 96px)),
         black 100%
     );
     -webkit-mask-size: 100% 100%;
@@ -179,32 +179,13 @@ main {
     mask-image: linear-gradient(
         to bottom,
         transparent var(--scroll-y, 0px),
-        transparent calc(var(--scroll-y, 0px) + 80px),
-        black calc(var(--scroll-y, 0px) + var(--mask-fade-end, 180px)),
+        transparent calc(var(--scroll-y, 0px) + 64px),
+        black calc(var(--scroll-y, 0px) + min(var(--mask-fade-end, 96px), 96px)),
         black 100%
     );
     mask-size: 100% 100%;
     mask-repeat: no-repeat;
     mask-position: top center;
-}
-
-.reading-layout main {
-    isolation: isolate;
-}
-
-.reading-layout main::before {
-    content: "";
-    position: absolute;
-    inset: 0 -5rem;
-    z-index: -1;
-    pointer-events: none;
-    background: linear-gradient(
-        to right,
-        transparent 0,
-        var(--reading-veil) 5rem,
-        var(--reading-veil) calc(100% - 5rem),
-        transparent 100%
-    );
 }
 
 .nav-logo {
@@ -460,17 +441,6 @@ h1 {
         gap: 0.3rem;
     }
 
-    .reading-layout main::before {
-        inset: 0 -1.5rem;
-        background: linear-gradient(
-            to right,
-            transparent 0,
-            var(--reading-veil) 1.5rem,
-            var(--reading-veil) calc(100% - 1.5rem),
-            transparent 100%
-        );
-    }
-
     .desktop-text {
         display: none;
     }
@@ -615,22 +585,6 @@ mark {
         padding-right: 1rem;
         border-right: 1px solid var(--toc-border);
         font-size: 0.85rem;
-    }
-    /* 스크롤바 숨기기 */
-    #floating-tree::-webkit-scrollbar {
-        width: 4px;
-    }
-    #floating-tree::-webkit-scrollbar-thumb {
-        background: #444;
-        border-radius: 4px;
-    }
-    /* 스크롤바 숨기기 */
-    #floating-toc::-webkit-scrollbar {
-        width: 4px;
-    }
-    #floating-toc::-webkit-scrollbar-thumb {
-        background: #444;
-        border-radius: 4px;
     }
     #floating-toc ul {
         list-style: none;
@@ -861,4 +815,69 @@ mark {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
     }
+}
+
+/* Match the browser canvas and controls before the first body paint. */
+:root { background-color: var(--bg-color); color-scheme: dark; }
+:root.light-mode { color-scheme: light; }
+.nav-logo, .theme-toggle-btn { flex-shrink: 0; }
+.suwonj-nav-icon { width: 35px; }
+.nav-links { align-items: center; flex-shrink: 0; white-space: nowrap; }
+.theme-toggle-btn { width: 20px; height: 24px; }
+.theme-toggle-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.theme-icon-light, :root.light-mode .theme-icon-dark { display: none; }
+:root.light-mode .theme-icon-light { display: block; }
+
+/* Keep document navigation native; avoid the default double-exposure fade. */
+@view-transition { navigation: auto; }
+::view-transition-group(root) { animation-duration: 0s; }
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) {
+    @view-transition { navigation: none; }
+}
+@media (max-width: 360px) {
+    .nav-links { gap: 1rem; }
+}
+
+/* Short native theme interpolation, shared with the existing canvas loop. */
+@property --halftone-color {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #ffffff;
+}
+:root {
+    --halftone-color: #ffffff;
+    transition: background-color 0.3s ease, --halftone-color 0.3s ease;
+}
+:root.light-mode { --halftone-color: #000000; }
+body { transition: color 0.3s ease; }
+
+/* Quiet scrollbar styling; scrolling and keyboard interaction stay native. */
+:root {
+    --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
+}
+:root.light-mode {
+    --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.38);
+}
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+@supports selector(::-webkit-scrollbar) {
+    * { scrollbar-width: auto; scrollbar-color: auto; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+}
+@media (forced-colors: active) {
+    * { scrollbar-width: auto; scrollbar-color: auto; }
+    ::-webkit-scrollbar { width: auto; height: auto; }
+    ::-webkit-scrollbar-thumb { background: ButtonText; }
 }

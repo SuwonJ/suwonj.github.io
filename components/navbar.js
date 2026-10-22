@@ -1,59 +1,36 @@
+// The public pages include the shared header in their initial HTML.
 export function renderNavbar() {
-  if (!document.getElementById("material-symbols-link")) {
-    const iconLink = document.createElement("link");
-    iconLink.id = "material-symbols-link";
-    iconLink.rel = "stylesheet";
-    iconLink.href =
-      "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200";
-    document.head.appendChild(iconLink);
+  // Older standalone pages still request their header at runtime.
+  if (!document.querySelector(".navbar")) {
+    document.body.insertAdjacentHTML("afterbegin", `<nav class="navbar">
+            <a href="/" class="nav-logo"><img src="/assets/suwonjicon.svg" alt="SuwonJ" class="suwonj-nav-icon" width="35" height="30" /></a>
+            <div id="nav-breadcrumb" class="nav-breadcrumb"></div>
+            <div class="nav-links">
+                <a href="/profile/">소개</a><a href="/blog/">블로그</a><a href="/research/">연구/실험</a>
+                <button id="theme-toggle" type="button" class="theme-toggle-btn" aria-label="라이트 모드로 전환">
+                    <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z" /></svg>
+                    <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+                </button>
+            </div>
+        </nav>`);
   }
-
-  const navbarHTML = `
-        <nav class="navbar">
-          <a href="/" class="nav-logo">
-            <img src="/assets/suwonjicon.svg" alt="SuwonJ" class="suwonj-nav-icon"/>
-          </a>
-          <div id="nav-breadcrumb" class="nav-breadcrumb"></div>
-          <div class="nav-links">
-              <a href="/profile/">소개</a>
-              <a href="/blog/">블로그</a>
-              <a href="/research/">연구/실험</a>
-              <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme">
-                <span class="material-symbols-outlined theme-icon-dark" style="display:none;">dark_mode</span>
-                <span class="material-symbols-outlined theme-icon-light" style="display:none;">light_mode</span>
-              </button>
-          </div>
-        </nav>
-    `;
-
-  document.body.insertAdjacentHTML("afterbegin", navbarHTML);
-
   const toggleBtn = document.getElementById("theme-toggle");
-  const darkIcon = toggleBtn.querySelector(".theme-icon-dark");
-  const lightIcon = toggleBtn.querySelector(".theme-icon-light");
+  if (!toggleBtn || toggleBtn.dataset.bound) return;
+  toggleBtn.dataset.bound = "true";
 
   function applyTheme(theme) {
-    if (theme === "light") {
-      document.body.classList.add("light-mode");
-      document.documentElement.classList.add("light-mode");
-      darkIcon.style.display = "none";
-      lightIcon.style.display = "inline-block";
-    } else {
-      document.body.classList.remove("light-mode");
-      document.documentElement.classList.remove("light-mode");
-      darkIcon.style.display = "inline-block";
-      lightIcon.style.display = "none";
-    }
+    const light = theme === "light";
+    document.documentElement.classList.toggle("light-mode", light);
+    document.body.classList.toggle("light-mode", light);
+    toggleBtn.setAttribute("aria-label", light ? "다크 모드로 전환" : "라이트 모드로 전환");
   }
 
-  // 초기 테마 로드
-  const savedTheme = localStorage.getItem("theme") || "dark";
-  applyTheme(savedTheme);
-
+  applyTheme(document.documentElement.classList.contains("light-mode") ? "light" : "dark");
   toggleBtn.addEventListener("click", () => {
-    const isLight = document.body.classList.contains("light-mode");
-    const newTheme = isLight ? "dark" : "light";
-    localStorage.setItem("theme", newTheme);
-    applyTheme(newTheme);
+    const theme = document.documentElement.classList.contains("light-mode") ? "dark" : "light";
+    try { localStorage.setItem("theme", theme); } catch {}
+    applyTheme(theme);
   });
 }
+
+renderNavbar();

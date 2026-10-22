@@ -14,7 +14,7 @@ export class HalftoneBackground {
     this.buttonSelectors = options.buttonSelectors || [];
     this.iconScale = options.iconScale !== undefined ? options.iconScale : 0.7;
     this.maxFps = Math.max(1, options.maxFps ?? 60);
-    this.lastFrameTime = 0;
+    this.lastFrameTime = -Infinity;
 
     this.currentBoundaryYs = [];
     this.targetBoundaryYs = [];
@@ -26,9 +26,7 @@ export class HalftoneBackground {
     ).matches;
     this.pointerInteraction =
       options.pointerInteraction !== false && !this.reduceMotion;
-    this.mouse = this.pointerInteraction
-      ? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-      : { x: -1000, y: -1000 };
+    this.mouse = { x: -1000, y: -1000 };
     this.iconRect = { x: 0, y: 0, w: 400, h: 400 };
     this.iconData = null;
     this.iconImg = new Image();
@@ -172,11 +170,11 @@ export class HalftoneBackground {
     const offCanvas = document.createElement("canvas");
     const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
     this.iconRect.w = Math.floor(
-      Math.min(window.innerWidth * this.iconScale, 900),
+      Math.min(document.documentElement.clientWidth * this.iconScale, 900),
     );
     this.iconRect.h = Math.floor((imgHeight / imgWidth) * this.iconRect.w);
     const margin = 40;
-    this.iconRect.x = Math.floor(window.innerWidth - this.iconRect.w - margin);
+    this.iconRect.x = Math.floor(document.documentElement.clientWidth - this.iconRect.w - margin);
     this.iconRect.y = Math.floor(window.innerHeight - this.iconRect.h - margin);
     offCanvas.width = this.iconRect.w;
     offCanvas.height = this.iconRect.h;
@@ -191,12 +189,15 @@ export class HalftoneBackground {
 
   resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = window.innerWidth * dpr;
+    this.canvas.width = document.documentElement.clientWidth * dpr;
     this.canvas.height = window.innerHeight * dpr;
-    this.canvas.style.width = window.innerWidth + "px";
+    this.canvas.style.width = document.documentElement.clientWidth + "px";
     this.canvas.style.height = window.innerHeight + "px";
     this.ctx.scale(dpr, dpr);
+    this.lastFrameTime = -Infinity;
     if (this.iconSrc) this.cacheIconData();
+    // Resizing clears the bitmap; repaint in the same task, including image onload.
+    this.animate(false);
   }
 
   setupEvents() {
@@ -252,11 +253,11 @@ export class HalftoneBackground {
     );
   }
 
-  animate() {
+  animate(schedule = true) {
     const now = performance.now();
     const frameInterval = 1000 / this.maxFps;
     if (now - this.lastFrameTime < frameInterval) {
-      requestAnimationFrame(this.animateFrame);
+      if (schedule !== false) requestAnimationFrame(this.animateFrame);
       return;
     }
     this.lastFrameTime = now - ((now - this.lastFrameTime) % frameInterval);
@@ -344,7 +345,7 @@ export class HalftoneBackground {
       }
     }
 
-    this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    this.ctx.clearRect(0, 0, document.documentElement.clientWidth, window.innerHeight);
 
     // 코드블럭 배경
     this.ctx.fillStyle = "#00000040";
@@ -365,10 +366,21 @@ export class HalftoneBackground {
       }
     }
 
-    const time = this.reduceMotion ? 0 : now * 0.002;
+    // Keep the spatial dot pattern still; pointer, scroll and click responses remain live.
+    const time = 0;
     const yOffset = ((-scrollY % this.gap) + this.gap) % this.gap;
+    // Attenuate only decorative dots. Semantic boundaries are applied afterwards.
+    const readingRect = document.documentElement.classList.contains("blog-article")
+      ? document.querySelector("main")?.getBoundingClientRect()
+      : null;
+    const veilSide = Math.max(40, Math.min(document.documentElement.clientWidth * 0.1, 120));
+    // One style read per frame; CSS interpolates the theme color without another loop.
+    this.ctx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue("--halftone-color").trim() || "#ffffff";
 
-    for (let x = this.gap / 2; x < window.innerWidth; x += this.gap) {
+
+
+    for (let x = this.gap / 2; x < document.documentElement.clientWidth; x += this.gap) {
       for (let y = yOffset; y < window.innerHeight; y += this.gap) {
         const absY = y + scrollY;
         const dx = this.mouse.x - x;
@@ -487,6 +499,16 @@ export class HalftoneBackground {
           maxButtonEdgeIntensity,
         );
 
+        if (readingRect) {
+          const horizontal = Math.max(0, Math.min(1,
+            (x - readingRect.left + 40) / veilSide,
+            (readingRect.right + 40 - x) / veilSide));
+          const vertical = Math.max(0, Math.min(1,
+            (y - readingRect.top + 40) / 128,
+            (readingRect.bottom + 40 - y) / 128));
+          opacity *= 1 - 0.9 * horizontal * vertical;
+        }
+
         if (finalBoundaryIntensity > 0) {
           const intensity = finalBoundaryIntensity;
 
@@ -509,17 +531,13 @@ export class HalftoneBackground {
           radius = Math.max(radius, boundaryRadius);
           opacity = Math.max(opacity, boundaryOpacity);
         }
-        const isLight =
-          document.documentElement.classList.contains("light-mode") ||
-          document.body.classList.contains("light-mode");
-        const dotColor = isLight ? "0, 0, 0" : "255, 255, 255";
-
         this.ctx.beginPath();
         this.ctx.arc(x, y, radius, 0, Math.PI * 2);
-        this.ctx.fillStyle = `rgba(${dotColor}, ${opacity})`;
+        this.ctx.globalAlpha = Math.min(1, Math.max(0, opacity));
         this.ctx.fill();
       }
     }
-    requestAnimationFrame(this.animateFrame);
+    this.ctx.globalAlpha = 1;
+    if (schedule !== false) requestAnimationFrame(this.animateFrame);
   }
 }
