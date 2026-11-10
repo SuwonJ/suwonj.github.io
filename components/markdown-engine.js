@@ -1,10 +1,11 @@
 import { Marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 import katex from 'katex';
+import { normalizePandocTables } from './pandoc-tables.js';
 import { normalizeMarkdownMath, renderDisplayMath } from './content-dependencies.js';
 const engine = new Marked(markedKatex({ throwOnError: false, nonStandard: true }));
 function prepareMath(text) {
-  return renderDisplayMath(normalizeMarkdownMath(text), tex =>
+  return renderDisplayMath(normalizeMarkdownMath(normalizePandocTables(text)), tex =>
     katex.renderToString(tex, { throwOnError: false, displayMode: true }));
 }
 export function renderMarkdown(text) { return engine.parse(prepareMath(text)); }

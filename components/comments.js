@@ -1,4 +1,4 @@
-import { fetchPostComments } from "./mastodon.js?v=27";
+import { fetchPostComments } from "./mastodon.js?v=28";
 import { sanitizeUntrustedHtml } from './content-dependencies.js';
 import { escapeHtml, safeHttpUrl } from './safe-html.js';
 

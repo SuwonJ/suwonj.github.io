@@ -182,7 +182,7 @@ try {
   assert.ok(await page.locator('#preview-markdown-content math, #preview-markdown-content svg').count());
   assert.ok((await page.locator('#preview-markdown-content').textContent()).includes('본문입니다.'));
   const same = await page.evaluate(async () => {
-    const { renderBody } = await import('/assets/preview.js?v=27');
+    const { renderBody } = await import('/assets/preview.js?v=28');
     const root = document.createElement('div'); document.body.append(root);
     await renderBody(root, window.sulogEditor.value);
     const equal = root.innerHTML === document.getElementById('preview-markdown-content').innerHTML;
@@ -190,7 +190,7 @@ try {
   });
   assert.ok(same);
   await page.evaluate(async () => {
-    const { renderBody } = await import('/assets/preview.js?v=27');
+    const { renderBody } = await import('/assets/preview.js?v=28');
     const root = document.createElement('div'); document.body.append(root);
     try {
       await renderBody(root, '= 안전 검증\n\n#html.elem("span", attrs: (onclick: "window.attacked=1", style: "position:fixed"), [안전])');

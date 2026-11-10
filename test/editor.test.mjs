@@ -94,3 +94,13 @@ test('display math protection keeps fenced Markdown and inline source untouched'
   assert.ok((html.match(/class="katex-display"/g) || []).length >= 2);
   assert.ok(!html.includes('katex-error'));
 });
+
+test('Pandoc multiline tables render Korean cells and preserve fenced examples', () => {
+  const text = '  -----------------------\n  **지역**  **설명**\n  --------- -------------\n  수성구    긴 내용\n            이어짐\n\n  남구      두 번째\n  -----------------------';
+  const html = renderMarkdown(text);
+  assert.match(html, /<table>/);
+  assert.match(html, /<td>수성구<\/td>/);
+  assert.match(html, /<td>긴 내용 이어짐<\/td>/);
+  assert.doesNotMatch(renderMarkdown('```\n' + text + '\n```'), /<table>/);
+  assert.equal(renderMarkdownBlocks(text).join(''), html);
+});

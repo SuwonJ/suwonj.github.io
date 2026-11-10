@@ -1,4 +1,4 @@
-import { inspectDocument } from '../components/document.js?v=27';
+import { inspectDocument } from '../components/document.js?v=28';
 import {
   initiateOAuth,
   handleOAuthCallback,
@@ -12,12 +12,12 @@ import {
   fetchMyStatuses,
   fetchEditableStatus,
   REDIRECT_URI
-} from "../components/mastodon_oauth.js?v=27";
+} from "../components/mastodon_oauth.js?v=28";
 
-import { parseMastodonStatus } from "../components/mastodon.js?v=27";
-import { parsePreview, commitPreview } from '../assets/preview.js?v=27';
-import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=27';
-import { formatText } from '../components/editor-tools.js?v=27';
+import { parseMastodonStatus } from "../components/mastodon.js?v=28";
+import { parsePreview, commitPreview } from '../assets/preview.js?v=28';
+import { dbGet, dbSet, draftKey, readDraft, removeDraft } from '../components/drafts.js?v=28';
+import { formatText } from '../components/editor-tools.js?v=28';
 
 const initialMode = localStorage.getItem('sulog_write_editor_mode');
 document.body.classList.add(`write-mode-${initialMode === 'preview' ? 'preview' : 'source'}`);
@@ -78,7 +78,7 @@ async function initAdminStudio() {
   window.addEventListener('pagehide', () => { saveDraft(); });
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   try {
-    const { installWriteEditor } = await import('../assets/editor.js?v=27');
+    const { installWriteEditor } = await import('../assets/editor.js?v=28');
     installWriteEditor();
   } catch (error) {
     console.error('Editor initialization failed:', error);

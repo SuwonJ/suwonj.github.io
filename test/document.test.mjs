@@ -53,3 +53,11 @@ test('v2 metadata footer remains separate from body hashtags', () => {
   assert.deepEqual(readableMetadataTags(text + '\n\n'), ['blog', 'math']);
   assert.equal(readableMetadataTags('legacy body\n\n#blog'), null);
 });
+
+test('Pandoc front matter supplies the title without changing source', () => {
+  const source = '---\nbibliography:\n- refs.bib\nsubtitle: 부제\ntitle: 문서 제목\n---\n\n본문';
+  const doc = inspectDocument(source);
+  assert.equal(doc.source, source);
+  assert.equal(doc.title, '문서 제목');
+  assert.equal(doc.body, '# 문서 제목\n\n부제\n\n\n본문');
+});

@@ -28,23 +28,23 @@ const shell = [
   
   "/write/",
   "/write/index.html",
-  "/write/write.js?v=27",
-  "/write/pdf.js?v=27",
-  "/write/page-mode.js?v=27",
-  "/admin/admin.js?v=27",
-  "/assets/studio-ui.css?v=27",
-  "/assets/editor.js?v=27",
-  "/assets/preview.js?v=27",
-  "/assets/preview-worker.js?v=27",
-  "/components/drafts.js?v=27",
-  "/components/editor-tools.js?v=27",
-  "/components/mastodon_document.js?v=27",
-  "/components/mastodon.js?v=27",
-  "/components/mastodon_oauth.js?v=27",
+  "/write/write.js?v=28",
+  "/write/pdf.js?v=28",
+  "/write/page-mode.js?v=28",
+  "/admin/admin.js?v=28",
+  "/assets/studio-ui.css?v=28",
+  "/assets/editor.js?v=28",
+  "/assets/preview.js?v=28",
+  "/assets/preview-worker.js?v=28",
+  "/components/drafts.js?v=28",
+  "/components/editor-tools.js?v=28",
+  "/components/mastodon_document.js?v=28",
+  "/components/mastodon.js?v=28",
+  "/components/mastodon_oauth.js?v=28",
   "/assets/vendor/katex.min.css",
   "/assets/vendor/highlight.min.css"
 ];
-shell.push('/components/source-api.js?v=27', '/components/document.js?v=27', '/components/source-thread.js?v=27', '/assets/typst-worker.js?v=27');
+shell.push('/components/source-api.js?v=28', '/components/document.js?v=28', '/components/source-thread.js?v=28', '/assets/typst-worker.js?v=28');
 for (const name of ['engine.core.wasm', 'engine.core2.wasm', 'engine.core3.wasm', 'NewCMMath-Regular.otf']) shell.push('/assets/vendor/typst/' + name);
 for (const font of await readdir('assets/vendor/fonts')) shell.push('/assets/vendor/fonts/' + font);
 await writeFile('write/precache.json', JSON.stringify(shell, null, 2) + '\n');
